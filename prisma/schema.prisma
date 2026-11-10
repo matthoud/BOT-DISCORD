@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Type d'action de modération enregistrée dans un cas.
+enum CaseType {
+  WARN
+  TIMEOUT
+  UNTIMEOUT
+  KICK
+  BAN
+  UNBAN
+  CLEAR_WARNINGS
+}
+
+/// Sanction appliquée automatiquement lorsqu'un seuil d'avertissements est atteint.
+enum SanctionAction {
+  TIMEOUT
+  KICK
+  BAN
+}
+
+/// Racine de toutes les données d'un serveur Discord.
+model GuildConfig {
+  guildId      String   @id
+  /// Compteur servant à numéroter les cas de modération du serveur.
+  caseCounter  Int      @default(0)
+  /// Prévenir les membres sanctionnés par message privé.
+  dmOnSanction Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  modules           ModuleConfig[]
+  moderationCases   ModerationCase[]
+  warnings          Warning[]
+  sanctionRules     SanctionRule[]
+  welcomeConfig     WelcomeConfig?
+  loggingConfig     LoggingConfig?
+  customPermissions CustomPermission[]
+}
+
+/// Préférences propres à un utilisateur (indépendantes des serveurs).
+model UserConfig {
+  userId          String   @id
+  /// Accepte de recevoir des messages privés du bot (notifications de sanction).
+  dmNotifications Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// Activation d'un module pour un serveur, avec ses réglages libres.
+model ModuleConfig {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  moduleId  String
+  enabled   Boolean  @default(true)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@unique([guildId, moduleId])
+}
+
+/// Une action de modération (un « cas »), numérotée par serveur.
+model ModerationCase {
+  id          Int       @id @default(autoincrement())
+  guildId     String
+  caseNumber  Int
+  type        CaseType
+  targetId    String
+  targetTag   String
+  moderatorId String
+  reason      String
+  /// Durée de la sanction en secondes (timeout, bannissement temporaire).
+  duration    Int?
+  /// Date de fin d'une sanction temporaire.
+  expiresAt   DateTime?
+  /// Faux tant qu'un bannissement temporaire attend sa levée automatique.
+  resolved    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  guild    GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  warnings Warning[]
+
+  @@unique([guildId, caseNumber])
+  @@index([guildId, targetId])
+  @@index([guildId, moderatorId])
+  @@index([resolved, expiresAt])
+}
+
+/// Avertissement attribué à un membre.
+model Warning {
+  id          Int      @id @default(autoincrement())
+  guildId     String
+  userId      String
+  moderatorId String
+  reason      String
+  active      Boolean  @default(true)
+  caseId      Int?
+  createdAt   DateTime @default(now())
+
+  guild GuildConfig     @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  case  ModerationCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  @@index([guildId, userId, active])
+  @@index([caseId])
+}
+
+/// Règle de sanction automatique : à `threshold` avertissements actifs, appliquer `action`.
+model SanctionRule {
+  id        Int            @id @default(autoincrement())
+  guildId   String
+  threshold Int
+  action    SanctionAction
+  /// Durée en secondes (obligatoire pour TIMEOUT, optionnelle pour BAN).
+  duration  Int?
+  createdAt DateTime       @default(now())
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@unique([guildId, threshold])
+}
+
+/// Configuration du module de bienvenue.
+model WelcomeConfig {
+  guildId        String   @id
+  enabled        Boolean  @default(false)
+  channelId      String?
+  welcomeMessage String   @default("Bienvenue {user} sur **{server}** ! Nous sommes désormais {memberCount} membres.")
+  leaveEnabled   Boolean  @default(true)
+  leaveMessage   String   @default("**{username}** a quitté {server}. Nous sommes désormais {memberCount} membres.")
+  autoRoleId     String?
+  updatedAt      DateTime @updatedAt
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+}
+
+/// Salons de logs par catégorie d'événements.
+model LoggingConfig {
+  guildId             String   @id
+  membersChannelId    String?
+  messagesChannelId   String?
+  channelsChannelId   String?
+  rolesChannelId      String?
+  moderationChannelId String?
+  updatedAt           DateTime @updatedAt
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+}
+
+/// Autorisation ou refus d'une commande pour un rôle donné.
+model CustomPermission {
+  id          Int      @id @default(autoincrement())
+  guildId     String
+  commandName String
+  roleId      String
+  /// true = rôle autorisé, false = rôle refusé.
+  allow       Boolean
+  createdAt   DateTime @default(now())
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@unique([guildId, commandName, roleId])
+  @@index([guildId, commandName])
+}

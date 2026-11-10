@@ -1,0 +1,38 @@
+# Développement : `docker compose up -d db` lance uniquement PostgreSQL.
+# Production   : `docker compose up -d --build` lance PostgreSQL et le bot.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Définissez POSTGRES_USER dans .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définissez POSTGRES_PASSWORD dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Définissez POSTGRES_DB dans .env}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      # Accessible uniquement depuis la machine hôte (jamais exposé sur Internet).
+      - '127.0.0.1:5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      # Dans le réseau Docker, la base est joignable sous le nom « db ».
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+    volumes:
+      - bot_logs:/app/logs
+
+volumes:
+  db_data:
+  bot_logs:

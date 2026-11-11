@@ -28,10 +28,23 @@ const EXPECTED: Record<string, string[]> = {
   utility: ['ping', 'help', 'module', 'permissions', 'config', 'preferences'],
   levels: ['rank', 'leaderboard', 'level'],
   economy: ['balance', 'daily', 'weekly', 'pay', 'shop', 'buy', 'inventory', 'economy', 'economy-admin', 'shop-admin'],
+  suggestions: ['suggest', 'suggestions', 'suggestions-admin'],
 };
 
 /** Modules de la V2 : inactifs tant qu'un administrateur ne les active pas. */
-const DISABLED_BY_DEFAULT = ['levels', 'economy'];
+const DISABLED_BY_DEFAULT = ['levels', 'economy', 'suggestions'];
+
+/**
+ * Composants volontairement utilisables sans permission Discord : ils sont ouverts à tous les
+ * membres, ou vérifient eux-mêmes un droit qui dépend de la configuration du serveur.
+ */
+const OPEN_COMPONENTS = [
+  'suggestions:submit',
+  'suggestions:vote',
+  'suggestions:manage',
+  'suggestions:action',
+  'suggestions:decide',
+];
 
 const NAME_PATTERN = /^[\p{Ll}\p{N}_-]{1,32}$/u;
 
@@ -94,7 +107,7 @@ describe('chargement des modules', () => {
   });
 
   it('protège les commandes sensibles par une permission et un cooldown', () => {
-    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config', 'level', 'economy-admin', 'shop-admin'];
+    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config', 'level', 'economy-admin', 'shop-admin', 'suggestions-admin'];
     for (const name of sensitive) {
       const command = registry.commands.find((loaded) => loaded.data.name === name);
       expect(command?.userPermissions?.length, `/${name} : permission`).toBeGreaterThan(0);
@@ -107,7 +120,7 @@ describe('chargement des modules', () => {
     expect(new Set(ids).size).toBe(ids.length);
     for (const component of registry.components) {
       expect(component.id.startsWith(`${component.moduleId}:`), component.id).toBe(true);
-      if (component.moduleId !== 'utility') {
+      if (component.moduleId !== 'utility' && !OPEN_COMPONENTS.includes(component.id)) {
         expect(component.userPermissions?.length, component.id).toBeGreaterThan(0);
       }
     }

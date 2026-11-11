@@ -22,11 +22,12 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 10. [Architecture](#architecture)
 11. [Module Niveaux](#module-niveaux)
 12. [Module Économie](#module-économie)
-13. [Ajouter une commande](#ajouter-une-commande)
-14. [Créer un module](#créer-un-module)
-15. [Permissions](#permissions)
-16. [Tests et qualité](#tests-et-qualité)
-17. [Dépannage](#dépannage)
+13. [Module Suggestions](#module-suggestions)
+14. [Ajouter une commande](#ajouter-une-commande)
+15. [Créer un module](#créer-un-module)
+16. [Permissions](#permissions)
+17. [Tests et qualité](#tests-et-qualité)
+18. [Dépannage](#dépannage)
 
 ## Fonctionnalités
 
@@ -40,6 +41,7 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 | 🧰 Utilitaires | `/help` `/ping` `/config view\|dm-sanctions\|timezone` `/module list\|enable\|disable` `/permissions allow\|deny\|reset\|list` `/preferences mp` |
 | ⭐ Niveaux *(à activer)* | `/rank [membre]` `/leaderboard` `/level config` `/level rewards add\|remove\|list` |
 | 🪙 Économie *(à activer)* | `/balance [membre]` `/daily` `/weekly` `/pay` `/shop` `/buy` `/inventory [membre]` `/economy leaderboard\|history` `/economy-admin config\|give\|take` `/shop-admin add\|edit\|remove` |
+| 💡 Suggestions *(à activer)* | `/suggest` `/suggestions list\|view` `/suggestions-admin config` |
 
 Les modules marqués *(à activer)* sont inactifs sur un serveur tant qu'un administrateur n'a pas
 lancé `/module enable`.
@@ -55,6 +57,9 @@ Points notables :
   des gains en discutant, des paiements entre membres, une boutique (articles et rôles) et un
   inventaire. Un solde ne peut jamais devenir négatif. Détail dans
   [Module Économie](#module-économie).
+- **Suggestions** : `/suggest` publie l'idée d'un membre dans un salon dédié, où chacun vote par
+  boutons ; le staff accepte, refuse ou répond depuis le message. Détail dans
+  [Module Suggestions](#module-suggestions).
 
 - **Modération** : chaque action exige une raison, reçoit un numéro de cas propre au serveur, est
   enregistrée en base et publiée dans le salon de logs de modération. La hiérarchie des rôles est
@@ -420,6 +425,9 @@ Les erreurs sont des `HttpError` dont le message, en français, peut être montr
 | `EconomyTransaction` | Historique des mouvements (conservé 180 jours) |
 | `ShopItem` | Article de la boutique : prix, rôle éventuel, stock, limite par membre |
 | `InventoryItem` | Exemplaires d'un article possédés par un membre |
+| `SuggestionConfig` | Salon des suggestions, rôle de staff, compteur de numérotation |
+| `Suggestion` | Suggestion numérotée par serveur : texte, statut, message public, réponse du staff |
+| `SuggestionVote` | Vote d'un membre sur une suggestion (un seul par membre) |
 
 Toutes les tables d'un serveur référencent `GuildConfig` (suppression en cascade). Les requêtes
 passent exclusivement par Prisma, avec des paramètres liés : aucune requête SQL n'est construite
@@ -511,6 +519,35 @@ de plus de 180 jours sont supprimés chaque jour par une tâche planifiée.
 - Le stock et la limite par membre sont décomptés dans la même transaction que le paiement : un
   article en un seul exemplaire ne peut pas être vendu deux fois.
 - `/pay` a un délai de 10 secondes par membre ; les ajustements manuels sont journalisés.
+
+## Module Suggestions
+
+Activation : `/module enable module:Suggestions`, puis `/suggestions-admin config` pour choisir le
+salon de publication (obligatoire) et, si besoin, un rôle de staff.
+
+**Proposer.** `/suggest` ouvre un formulaire (10 à 1 500 caractères). La suggestion reçoit un
+numéro propre au serveur et est publiée dans le salon configuré. Un membre peut en proposer une
+toutes les deux minutes. Le texte ne peut mentionner personne.
+
+**Voter.** Sous chaque suggestion, les boutons 👍 et 👎 affichent le décompte en direct. Chaque
+membre a un seul vote : recliquer sur le même bouton le retire, cliquer sur l'autre le remplace.
+
+**Traiter.** Le bouton « ⚙️ Gérer » est visible de tous mais réservé au staff : les membres ayant
+`Gérer le serveur`, plus ceux du rôle de staff s'il est configuré. Il propose en privé :
+
+| Action | Effet |
+|---|---|
+| Accepter / Refuser | Change le statut, clôt les votes, ajoute un commentaire facultatif |
+| Répondre | Ajoute ou modifie la réponse du staff sans changer le statut |
+| Rouvrir les votes | Remet la suggestion en attente et efface la décision |
+
+Le message public est mis à jour à chaque action (couleur, statut, réponse, auteur de la décision).
+S'il a été supprimé à la main, la décision est tout de même enregistrée et le staff en est averti.
+
+**Consulter.** `/suggestions list [statut] [membre]` affiche l'historique en privé, de la plus
+récente à la plus ancienne, avec les votes et un lien vers chaque message ; le pied de page donne
+le nombre de suggestions en attente, acceptées et refusées. `/suggestions view numero:12` affiche
+une suggestion précise.
 
 ## Ajouter une commande
 
@@ -606,6 +643,11 @@ Règles à suivre :
    ```
 
    Le bouton correspondant utilise `componentId('tickets:open', 'argument')`.
+
+   Un composant de configuration déclare `userPermissions`. Un composant ouvert à tous (bouton de
+   vote, par exemple), ou qui vérifie lui-même un droit dépendant de la configuration du serveur,
+   n'en déclare pas : ajoutez alors son identifiant à `OPEN_COMPONENTS` dans
+   `tests/modules.test.ts`, pour que l'absence de permission reste un choix explicite.
 
 5. Données : ajoutez vos modèles à `prisma/schema.prisma` avec un `guildId` relié à `GuildConfig`,
    créez la migration (`npm run db:migrate -- --name tickets`) et un repository dans

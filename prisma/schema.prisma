@@ -52,6 +52,8 @@ model GuildConfig {
   economyTransactions EconomyTransaction[]
   shopItems           ShopItem[]
   inventoryItems      InventoryItem[]
+  suggestionConfig    SuggestionConfig?
+  suggestions         Suggestion[]
 }
 
 /// Préférences propres à un utilisateur (indépendantes des serveurs).
@@ -357,4 +359,63 @@ model InventoryItem {
 
   @@unique([guildId, userId, itemId])
   @@index([itemId])
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  REFUSED
+}
+
+/// Réglages des suggestions d'un serveur.
+model SuggestionConfig {
+  guildId     String   @id
+  /// Salon où les suggestions sont publiées.
+  channelId   String?
+  /// Rôle autorisé à traiter les suggestions, en plus des membres ayant « Gérer le serveur ».
+  staffRoleId String?
+  /// Compteur servant à numéroter les suggestions du serveur.
+  counter     Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+}
+
+/// Suggestion d'un membre, numérotée par serveur.
+model Suggestion {
+  id            Int              @id @default(autoincrement())
+  guildId       String
+  number        Int
+  authorId      String
+  content       String
+  status        SuggestionStatus @default(PENDING)
+  /// Message public de la suggestion (vide tant que la publication n'a pas abouti).
+  channelId     String?
+  messageId     String?
+  /// Membre du staff ayant rendu la décision ou la dernière réponse.
+  staffId       String?
+  staffResponse String?
+  decidedAt     DateTime?
+  createdAt     DateTime         @default(now())
+
+  guild GuildConfig      @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  votes SuggestionVote[]
+
+  @@unique([guildId, number])
+  @@index([guildId, status, number(sort: Desc)])
+  @@index([guildId, authorId])
+}
+
+/// Vote d'un membre sur une suggestion : un seul par membre.
+model SuggestionVote {
+  id           Int      @id @default(autoincrement())
+  suggestionId Int
+  userId       String
+  /// +1 pour, -1 contre.
+  value        Int
+  createdAt    DateTime @default(now())
+
+  suggestion Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@unique([suggestionId, userId])
 }

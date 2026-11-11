@@ -114,6 +114,14 @@ describe('affichage', () => {
     expect(printable('Éloïse 🎮', 'x')).toBe('Éloïse');
     expect(printable('🎮🎮', 'secours')).toBe('secours');
     expect(printable('  Jean   Dupont ', 'x')).toBe('Jean Dupont');
+    expect(printable('Дмитрий Αλέξης', 'x')).toBe('Дмитрий Αλέξης');
+  });
+
+  it('remplace en entier un nom qui serait amputé', () => {
+    // Pseudo « stylisé » mêlant tibétain et alphabet phonétique, puis idéogrammes, puis lettres pleine chasse.
+    expect(printable('ཞąɬɬɧơųɖ', 'matthoud')).toBe('matthoud');
+    expect(printable('田中 Taro', 'taro')).toBe('taro');
+    expect(printable('ＭＡＴＴ', 'matt')).toBe('matt');
   });
 });
 

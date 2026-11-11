@@ -5,7 +5,9 @@ import { formatNumber } from './xp';
 
 const WIDTH = 934;
 const HEIGHT = 282;
-const FONT = 'BotInter';
+/** La police est découpée en jeux de caractères ; chacun est essayé à tour de rôle pour chaque caractère. */
+const FONT_SUBSETS = ['latin', 'latin-ext', 'greek', 'cyrillic', 'cyrillic-ext', 'vietnamese'] as const;
+const FONT = FONT_SUBSETS.map((subset) => `BotInter-${subset}`).join(', ');
 const AVATAR_SIZE = 168;
 const AVATAR_X = 48;
 const AVATAR_Y = (HEIGHT - AVATAR_SIZE) / 2;
@@ -48,24 +50,51 @@ let fontsRegistered = false;
 /** La police est fournie avec le bot : le rendu ne dépend pas des polices installées sur le serveur. */
 function registerFonts(): void {
   if (fontsRegistered) return;
-  for (const subset of ['latin', 'latin-ext']) {
+  for (const subset of FONT_SUBSETS) {
     for (const weight of [400, 600, 700]) {
+      // Une famille par jeu de caractères : enregistrés sous un même nom, un seul serait utilisé.
       GlobalFonts.registerFromPath(
         require.resolve(`@fontsource/inter/files/inter-${subset}-${weight}-normal.woff2`),
-        FONT,
+        `BotInter-${subset}`,
       );
     }
   }
   fontsRegistered = true;
 }
 
-/** Ne garde que les caractères que la police sait dessiner (latin, chiffres, ponctuation courante). */
+/** Plages de caractères couvertes par la police embarquée (bornes incluses). */
+const DRAWABLE_RANGES: [number, number][] = [
+  [0x0020, 0x007e], // ASCII
+  // Latin accentué et étendu, alphabet phonétique ; sans les digrammes (DŽ, LJ, NJ, DZ), absents de la police.
+  [0x00a1, 0x01c3],
+  [0x01cd, 0x01f0],
+  [0x01f4, 0x02ff],
+  [0x0370, 0x03ff], // grec
+  [0x0400, 0x052f], // cyrillique
+  [0x1e00, 0x1eff], // latin étendu additionnel (vietnamien...)
+  [0x2010, 0x2027], // tirets, guillemets et points de suspension typographiques
+  [0x20ac, 0x20ac], // euro
+];
+
+const isDrawable = (codePoint: number): boolean =>
+  DRAWABLE_RANGES.some(([first, last]) => codePoint >= first && codePoint <= last);
+
+/** Caractères décoratifs retirés sans conséquence : émojis, accents combinés, caractères invisibles. */
+const DECORATION = /\p{Extended_Pictographic}|\p{M}|\p{C}|\p{Sk}/u;
+
+/**
+ * Prépare un texte pour la carte. Les espaces sont normalisés et les émojis retirés.
+ * Si le texte contient des lettres que la police ne sait pas dessiner (écriture non couverte,
+ * pseudo « stylisé »), il serait amputé : `fallback` est alors utilisé à sa place, en entier.
+ */
 export function printable(text: string, fallback: string): string {
-  const cleaned = text
-    .replace(/[^ -~¡-ɏ‐-‧€]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return cleaned || fallback;
+  let cleaned = '';
+  for (const char of text) {
+    if (isDrawable(char.codePointAt(0) ?? 0)) cleaned += char;
+    else if (/\s/u.test(char)) cleaned += ' ';
+    else if (!DECORATION.test(char)) return fallback;
+  }
+  return cleaned.replace(/ +/g, ' ').trim() || fallback;
 }
 
 const hex = (color: number): string => `#${color.toString(16).padStart(6, '0')}`;

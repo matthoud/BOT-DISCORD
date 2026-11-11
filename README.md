@@ -442,8 +442,11 @@ est donnée au prochain passage de niveau du membre.
 
 **Carte de niveau.** `/rank` génère une image (avatar, rang, niveau, barre de progression, XP total
 et nombre de messages). La police est fournie avec le bot : aucune police n'est à installer sur le
-serveur. Les caractères hors alphabet latin (émojis, idéogrammes) sont retirés du nom affiché. Si
-l'image ne peut pas être produite, les mêmes informations sont envoyées sous forme d'embed.
+serveur. Elle couvre les alphabets latin (accents compris), grec et cyrillique. Les émojis sont
+retirés du nom affiché ; si le nom contient d'autres caractères que la police ne sait pas dessiner
+(idéogrammes, pseudo « stylisé »), c'est le nom d'utilisateur qui est affiché à sa place, plutôt
+qu'un nom amputé. Si l'image ne peut pas être produite, les mêmes informations sont envoyées sous
+forme d'embed.
 
 Pour ajouter une statistique à la carte, passez une entrée de plus dans `stats` lors de l'appel à
 `renderRankCard` (`src/modules/levels/commands/rank.ts`) ; la carte les affiche tant que la place

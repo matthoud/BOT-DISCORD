@@ -27,7 +27,9 @@ async function assertModuleEnabled(
   const botModule = client.modules.get(moduleId);
   if (!botModule?.canDisable) return;
   if (!(await isModuleEnabled(guildId, moduleId))) {
-    throw new BotError(`Le module **${botModule.name}** est désactivé sur ce serveur.`);
+    throw new BotError(
+      `Le module **${botModule.name}** est désactivé sur ce serveur. Un administrateur peut l'activer avec \`/module enable\`.`,
+    );
   }
 }
 

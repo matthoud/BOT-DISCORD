@@ -24,6 +24,8 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@napi-rs/canvas": "^1.1.0",
     "@prisma/client": "^6.0.0",
     "discord.js": "^14.16.0",
     "dotenv": "^16.4.0",

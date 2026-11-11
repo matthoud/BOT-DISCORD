@@ -26,7 +26,11 @@ const EXPECTED: Record<string, string[]> = {
   welcome: ['welcome'],
   fun: ['8ball', 'coinflip', 'dice', 'meme', 'joke', 'ship', 'hug', 'slap', 'poll', 'choose'],
   utility: ['ping', 'help', 'module', 'permissions', 'config', 'preferences'],
+  levels: ['rank', 'leaderboard', 'level'],
 };
+
+/** Modules de la V2 : inactifs tant qu'un administrateur ne les active pas. */
+const DISABLED_BY_DEFAULT = ['levels'];
 
 const NAME_PATTERN = /^[\p{Ll}\p{N}_-]{1,32}$/u;
 
@@ -89,7 +93,7 @@ describe('chargement des modules', () => {
   });
 
   it('protège les commandes sensibles par une permission et un cooldown', () => {
-    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config'];
+    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config', 'level'];
     for (const name of sensitive) {
       const command = registry.commands.find((loaded) => loaded.data.name === name);
       expect(command?.userPermissions?.length, `/${name} : permission`).toBeGreaterThan(0);
@@ -117,5 +121,13 @@ describe('chargement des modules', () => {
     const count = (moduleId: string) => registry.events.filter((event) => event.moduleId === moduleId).length;
     expect(count('logging')).toBe(14);
     expect(count('welcome')).toBe(2);
+    expect(count('levels')).toBe(1);
+  });
+
+  it('laisse les modules de la V1 actifs par défaut et ceux de la V2 inactifs', () => {
+    const disabled = registry.modules
+      .filter((botModule) => botModule.defaultEnabled === false)
+      .map((botModule) => botModule.id);
+    expect(disabled.sort()).toEqual([...DISABLED_BY_DEFAULT].sort());
   });
 });

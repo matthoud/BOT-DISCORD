@@ -20,11 +20,12 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 8. [Déploiement sur Debian](#déploiement-sur-debian)
 9. [Mise à jour du bot](#mise-à-jour-du-bot)
 10. [Architecture](#architecture)
-11. [Ajouter une commande](#ajouter-une-commande)
-12. [Créer un module](#créer-un-module)
-13. [Permissions](#permissions)
-14. [Tests et qualité](#tests-et-qualité)
-15. [Dépannage](#dépannage)
+11. [Module Niveaux](#module-niveaux)
+12. [Ajouter une commande](#ajouter-une-commande)
+13. [Créer un module](#créer-un-module)
+14. [Permissions](#permissions)
+15. [Tests et qualité](#tests-et-qualité)
+16. [Dépannage](#dépannage)
 
 ## Fonctionnalités
 
@@ -36,8 +37,18 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 | 👋 Bienvenue | `/welcome setup` |
 | 🎉 Divertissement | `/8ball` `/coinflip` `/dice` `/meme` `/joke` `/ship` `/hug` `/slap` `/poll` `/choose` |
 | 🧰 Utilitaires | `/help` `/ping` `/config view\|dm-sanctions\|timezone` `/module list\|enable\|disable` `/permissions allow\|deny\|reset\|list` `/preferences mp` |
+| ⭐ Niveaux *(à activer)* | `/rank [membre]` `/leaderboard` `/level config` `/level rewards add\|remove\|list` |
+
+Les modules marqués *(à activer)* sont inactifs sur un serveur tant qu'un administrateur n'a pas
+lancé `/module enable`.
 
 Points notables :
+
+- **Niveaux** : chaque message rapporte de l'XP (15 à 25 par défaut, un gain par minute au plus).
+  `/level config` ouvre un panneau pour régler les gains, la progression, le message et le salon
+  des annonces, ainsi que les salons et rôles qui ne rapportent pas d'XP. `/level rewards` attribue
+  un rôle à un niveau donné. `/rank` affiche une carte en image, `/leaderboard` les 100 premiers.
+  Détail dans [Module Niveaux](#module-niveaux).
 
 - **Modération** : chaque action exige une raison, reçoit un numéro de cas propre au serveur, est
   enregistrée en base et publiée dans le salon de logs de modération. La hiérarchie des rôles est
@@ -395,10 +406,48 @@ Les erreurs sont des `HttpError` dont le message, en français, peut être montr
 | `WelcomeConfig` | Configuration de la bienvenue |
 | `LoggingConfig` | Salon de logs par catégorie |
 | `CustomPermission` | Rôles autorisés ou refusés par commande |
+| `LevelConfig` | Réglages des niveaux : gains, progression, annonces, salons et rôles exclus |
+| `UserExperience` | XP, nombre de messages et dernier niveau constaté d'un membre sur un serveur |
+| `LevelReward` | Rôle attribué à un niveau (un rôle par niveau, un niveau par rôle) |
 
 Toutes les tables d'un serveur référencent `GuildConfig` (suppression en cascade). Les requêtes
 passent exclusivement par Prisma, avec des paramètres liés : aucune requête SQL n'est construite
 par concaténation.
+
+## Module Niveaux
+
+Activation : `/module enable module:Niveaux`, puis `/level config`.
+
+**Gain d'XP.** Un message rapporte un nombre d'XP tiré au hasard entre le minimum et le maximum
+configurés. Ne rapportent rien : les messages des bots, ceux envoyés dans un salon exclu (ou dans
+un fil d'un salon exclu), ceux d'un membre portant un rôle exclu, et ceux envoyés avant la fin du
+délai depuis le dernier gain du membre. Ce délai est gardé en mémoire : il repart de zéro après un
+redémarrage du bot.
+
+**Progression.** Passer du niveau *n* au niveau *n + 1* coûte `base + pas × n` XP (100 et 50 par
+défaut : 100 XP pour le niveau 1, 250 au total pour le niveau 2, 450 pour le niveau 3…). Le niveau
+est toujours recalculé à partir de l'XP total : modifier la progression change donc le niveau de
+tous les membres, sans perte d'XP et sans annonce.
+
+**Annonces.** Le message de passage de niveau accepte `{user}`, `{username}`, `{level}`, `{xp}` et
+`{server}`. Il est publié dans le salon choisi, ou à défaut là où le membre vient d'écrire. Seul le
+membre concerné peut y être mentionné. Les annonces se coupent d'un bouton dans le panneau.
+
+**Récompenses.** `/level rewards add niveau:10 role:@Habitué` attribue le rôle à ceux qui
+atteignent le niveau 10. Le bot doit avoir `Gérer les rôles` et un rôle placé au-dessus de la
+récompense ; l'administrateur ne peut pas choisir un rôle supérieur au sien. Par défaut les rôles
+se cumulent ; le bouton « Remplacer les rôles » ne conserve que celui du palier le plus élevé. Les
+rôles sont attribués au moment où un membre monte de niveau : une récompense ajoutée après coup
+est donnée au prochain passage de niveau du membre.
+
+**Carte de niveau.** `/rank` génère une image (avatar, rang, niveau, barre de progression, XP total
+et nombre de messages). La police est fournie avec le bot : aucune police n'est à installer sur le
+serveur. Les caractères hors alphabet latin (émojis, idéogrammes) sont retirés du nom affiché. Si
+l'image ne peut pas être produite, les mêmes informations sont envoyées sous forme d'embed.
+
+Pour ajouter une statistique à la carte, passez une entrée de plus dans `stats` lors de l'appel à
+`renderRankCard` (`src/modules/levels/commands/rank.ts`) ; la carte les affiche tant que la place
+le permet.
 
 ## Ajouter une commande
 

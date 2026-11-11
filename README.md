@@ -24,11 +24,12 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 12. [Module Économie](#module-économie)
 13. [Module Suggestions](#module-suggestions)
 14. [Module Sondages](#module-sondages)
-15. [Ajouter une commande](#ajouter-une-commande)
-16. [Créer un module](#créer-un-module)
-17. [Permissions](#permissions)
-18. [Tests et qualité](#tests-et-qualité)
-19. [Dépannage](#dépannage)
+15. [Module Événements](#module-événements)
+16. [Ajouter une commande](#ajouter-une-commande)
+17. [Créer un module](#créer-un-module)
+18. [Permissions](#permissions)
+19. [Tests et qualité](#tests-et-qualité)
+20. [Dépannage](#dépannage)
 
 ## Fonctionnalités
 
@@ -44,6 +45,7 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 | ⭐ Niveaux *(à activer)* | `/rank [membre]` `/leaderboard` `/level config` `/level rewards add\|remove\|list` |
 | 🪙 Économie *(à activer)* | `/balance [membre]` `/daily` `/weekly` `/pay` `/shop` `/buy` `/inventory [membre]` `/economy leaderboard\|history` `/economy-admin config\|give\|take` `/shop-admin add\|edit\|remove` |
 | 💡 Suggestions *(à activer)* | `/suggest` `/suggestions list\|view` `/suggestions-admin config` |
+| 📅 Événements *(à activer)* | `/event list` `/event-admin create\|edit\|delete` `/reminder create\|list\|delete` |
 
 Les modules marqués *(à activer)* sont inactifs sur un serveur tant qu'un administrateur n'a pas
 lancé `/module enable`.
@@ -65,6 +67,9 @@ Points notables :
 - **Sondages** : `/poll create` publie un sondage à boutons (2 à 10 réponses, choix unique ou
   multiple, durée de 1 minute à 30 jours, résultats en direct ou à la clôture). Détail dans
   [Module Sondages](#module-sondages).
+- **Événements** : annonce avec date, description, image, inscriptions par boutons, nombre de
+  places et rappel automatique avant le début ; rappels personnels avec `/reminder`. Les dates
+  sont lues dans le fuseau horaire du serveur. Détail dans [Module Événements](#module-événements).
 
 - **Modération** : chaque action exige une raison, reçoit un numéro de cas propre au serveur, est
   enregistrée en base et publiée dans le salon de logs de modération. La hiérarchie des rôles est
@@ -436,6 +441,9 @@ Les erreurs sont des `HttpError` dont le message, en français, peut être montr
 | `Poll` | Sondage : question, mode, échéance, date de clôture, message public |
 | `PollOption` | Réponse proposée dans un sondage |
 | `PollVote` | Vote d'un membre pour une réponse |
+| `Event` | Événement : date, annonce, capacité, échéance et état du rappel |
+| `EventParticipant` | Réponse d'un membre à un événement (une seule par membre) |
+| `Reminder` | Rappel personnel : échéance, salon d'origine, état de l'envoi |
 
 Toutes les tables d'un serveur référencent `GuildConfig` (suppression en cascade). Les requêtes
 passent exclusivement par Prisma, avec des paramètres liés : aucune requête SQL n'est construite
@@ -587,6 +595,63 @@ réservé à l'auteur du sondage et aux membres ayant `Gérer les messages`.
 **Consulter.** `/poll results sondage:…` affiche en privé les résultats d'un des 50 derniers
 sondages du serveur. Tant qu'un sondage à résultats masqués est ouvert, seuls son auteur et les
 modérateurs peuvent les consulter. Un sondage est conservé 90 jours après sa clôture.
+
+## Module Événements
+
+Activation : `/module enable module:Événements`. Vérifiez d'abord le fuseau horaire du serveur avec
+`/config timezone` (`Europe/Paris` par défaut) : toutes les dates saisies y sont interprétées.
+
+**Saisir une date.**
+
+| Saisie | Signification |
+|---|---|
+| `25/12/2026 18:30`, `25/12/2026 à 18h` | Date et heure complètes |
+| `25/12 18:30` | Année en cours, ou suivante si la date est déjà passée |
+| `demain 20h`, `aujourd'hui 21:30`, `après-demain 9h` | Jour relatif |
+| `21:00`, `9h`, `20h30` | Aujourd'hui, ou demain si l'heure est déjà passée |
+| `dans 2h`, `dans 45m`, `3j`, `2h30m` | Délai à partir de maintenant |
+
+Une heure seule est toujours une heure de la journée : `2h` signifie 2 heures du matin. Pour un
+délai en heures, écrivez `dans 2h`. Après chaque saisie, le bot répète la date qu'il a comprise.
+Une date inexistante (31 février, heure sautée lors du passage à l'heure d'été) est refusée. Dans
+les messages, les dates s'affichent ensuite dans le fuseau de chaque membre.
+
+**Créer un événement.** `/event-admin create titre:… date:… [description] [salon] [image] [rappel]
+[places]` publie l'annonce (permission `Gérer les événements`).
+
+| Option | Effet | Par défaut |
+|---|---|---|
+| `description` | Texte libre ; `\n` insère un retour à la ligne | aucune |
+| `salon` | Salon de l'annonce | salon courant |
+| `image` | Adresse `https://` d'une image affichée dans l'annonce | aucune |
+| `rappel` | Aucun, 10 min, 30 min, 1 h ou 1 jour avant | 30 minutes |
+| `places` | Nombre maximal de participants | illimité |
+
+Un serveur peut avoir 25 événements à venir, programmés au plus un an à l'avance.
+
+**S'inscrire.** Les boutons « Je participe » et « Je ne participe pas » affichent leur décompte.
+Recliquer retire la réponse ; cliquer sur l'autre la remplace. Quand le nombre de places est
+atteint, les inscriptions suivantes sont refusées jusqu'à ce qu'une place se libère. L'annonce
+nomme les 30 premiers inscrits et compte les suivants.
+
+**Rappel et début.** Au moment du rappel, le bot publie un message dans le salon de l'annonce en
+mentionnant les participants (80 au plus). À l'heure de début, les inscriptions sont closes et les
+boutons retirés. Ces deux contrôles ont lieu toutes les 30 secondes. Si le bot était arrêté à
+l'heure du rappel, celui-ci est envoyé au redémarrage tant que l'événement n'a pas commencé.
+
+**Modifier ou supprimer.** `/event-admin edit evenement:…` change le titre, la date, la
+description, l'image (`image:aucune` pour la retirer), le rappel ou les places (`places:0` pour
+illimité) et met l'annonce à jour. Reporter un événement rouvre les inscriptions et reprogramme le
+rappel avec le même délai. `/event-admin delete` supprime l'événement et son annonce, après
+confirmation ; les inscrits ne sont pas prévenus. `/event list` montre à tous les prochains
+événements, avec un lien vers chaque annonce. Un événement est conservé 30 jours après son début.
+
+**Rappels personnels.** `/reminder create quand:… message:…` programme un rappel : le moment venu,
+le bot mentionne le membre dans le salon où le rappel a été créé, ou lui écrit en message privé si
+ce salon n'est plus accessible. Un rappel dû pendant un arrêt du bot part au redémarrage. Un envoi
+qui échoue est retenté deux fois, puis abandonné. Chaque membre peut avoir 10 rappels en attente
+par serveur, au plus un an à l'avance ; `/reminder list` les affiche et `/reminder delete` en
+supprime un.
 
 ## Ajouter une commande
 

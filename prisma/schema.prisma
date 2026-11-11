@@ -55,6 +55,8 @@ model GuildConfig {
   suggestionConfig    SuggestionConfig?
   suggestions         Suggestion[]
   polls               Poll[]
+  events              Event[]
+  reminders           Reminder[]
 }
 
 /// Préférences propres à un utilisateur (indépendantes des serveurs).
@@ -474,4 +476,74 @@ model PollVote {
 
   @@unique([optionId, userId])
   @@index([pollId, userId])
+}
+
+enum ParticipationStatus {
+  GOING
+  DECLINED
+}
+
+/// Événement communautaire annoncé dans un salon.
+model Event {
+  id             Int       @id @default(autoincrement())
+  guildId        String
+  channelId      String
+  /// Message d'annonce (vide tant que la publication n'a pas abouti).
+  messageId      String?
+  creatorId      String
+  title          String
+  description    String    @default("")
+  imageUrl       String?
+  startsAt       DateTime
+  /// Nombre maximal de participants ; vide = illimité.
+  capacity       Int?
+  /// Moment du rappel automatique ; vide = aucun rappel.
+  reminderAt     DateTime?
+  reminderSentAt DateTime?
+  /// Renseigné quand le début de l'événement a été traité (inscriptions closes).
+  startedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  guild        GuildConfig        @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  participants EventParticipant[]
+
+  @@index([guildId, startsAt])
+  @@index([startedAt, startsAt])
+  @@index([reminderSentAt, reminderAt])
+}
+
+/// Réponse d'un membre à un événement : une seule par membre.
+model EventParticipant {
+  id        Int                 @id @default(autoincrement())
+  eventId   Int
+  userId    String
+  status    ParticipationStatus
+  createdAt DateTime            @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId, status])
+}
+
+/// Rappel personnel programmé par un membre.
+model Reminder {
+  id        Int       @id @default(autoincrement())
+  guildId   String
+  /// Salon où le rappel a été créé, et où il sera envoyé.
+  channelId String
+  userId    String
+  message   String
+  remindAt  DateTime
+  /// Renseigné dès que l'envoi est pris en charge : un rappel n'est jamais envoyé deux fois.
+  sentAt    DateTime?
+  /// Nombre d'envois tentés, pour ne pas réessayer indéfiniment.
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([sentAt, remindAt])
+  @@index([guildId, userId, sentAt])
 }

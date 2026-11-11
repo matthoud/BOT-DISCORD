@@ -4,7 +4,7 @@ export function truncate(text: string, maxLength: number): string {
 }
 
 /** Horodatage Discord (affiché dans le fuseau de chaque utilisateur). `style` : f, F, R, D... */
-export function timestamp(date: Date | number, style: 'f' | 'F' | 'R' | 'D' | 'd' = 'f'): string {
+export function timestamp(date: Date | number, style: 'f' | 'F' | 'R' | 'D' | 'd' | 't' = 'f'): string {
   const ms = typeof date === 'number' ? date : date.getTime();
   return `<t:${Math.floor(ms / 1000)}:${style}>`;
 }

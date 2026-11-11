@@ -37,16 +37,21 @@ model GuildConfig {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  modules           ModuleConfig[]
-  moderationCases   ModerationCase[]
-  warnings          Warning[]
-  sanctionRules     SanctionRule[]
-  welcomeConfig     WelcomeConfig?
-  loggingConfig     LoggingConfig?
-  customPermissions CustomPermission[]
-  levelConfig       LevelConfig?
-  userExperiences   UserExperience[]
-  levelRewards      LevelReward[]
+  modules             ModuleConfig[]
+  moderationCases     ModerationCase[]
+  warnings            Warning[]
+  sanctionRules       SanctionRule[]
+  welcomeConfig       WelcomeConfig?
+  loggingConfig       LoggingConfig?
+  customPermissions   CustomPermission[]
+  levelConfig         LevelConfig?
+  userExperiences     UserExperience[]
+  levelRewards        LevelReward[]
+  economyConfig       EconomyConfig?
+  economyAccounts     EconomyAccount[]
+  economyTransactions EconomyTransaction[]
+  shopItems           ShopItem[]
+  inventoryItems      InventoryItem[]
 }
 
 /// Préférences propres à un utilisateur (indépendantes des serveurs).
@@ -245,4 +250,111 @@ model LevelReward {
 
   @@unique([guildId, level])
   @@unique([guildId, roleId])
+}
+
+/// Nature d'un mouvement de monnaie.
+enum TransactionType {
+  DAILY
+  WEEKLY
+  PAY_SENT
+  PAY_RECEIVED
+  PURCHASE
+  REFUND
+  ADMIN_GIVE
+  ADMIN_TAKE
+}
+
+/// Réglages de l'économie d'un serveur.
+model EconomyConfig {
+  guildId                String   @id
+  currencyName           String   @default("pièces")
+  currencyEmoji          String   @default("🪙")
+  dailyAmount            Int      @default(100)
+  weeklyAmount           Int      @default(500)
+  /// Gain par message : valeur tirée au hasard entre messageMin et messageMax (0 et 0 = désactivé).
+  messageMin             Int      @default(1)
+  messageMax             Int      @default(3)
+  messageCooldownSeconds Int      @default(60)
+  updatedAt              DateTime @updatedAt
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+}
+
+/// Portefeuille d'un membre sur un serveur. Le solde ne peut jamais être négatif (contrainte en base).
+model EconomyAccount {
+  id           Int       @id @default(autoincrement())
+  guildId      String
+  userId       String
+  balance      Int       @default(0)
+  lastDailyAt  DateTime?
+  lastWeeklyAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId, balance(sort: Desc)])
+}
+
+/// Mouvement de monnaie (hors gains par message, trop nombreux pour être conservés un à un).
+model EconomyTransaction {
+  id             Int             @id @default(autoincrement())
+  guildId        String
+  userId         String
+  type           TransactionType
+  /// Montant signé : positif pour un gain, négatif pour une dépense.
+  amount         Int
+  balanceAfter   Int
+  /// Autre membre concerné (paiement) ou administrateur à l'origine du mouvement.
+  counterpartyId String?
+  /// Précision libre : nom de l'article acheté, par exemple.
+  note           String?
+  createdAt      DateTime        @default(now())
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([guildId, userId, createdAt(sort: Desc)])
+  @@index([createdAt])
+}
+
+/// Article de la boutique d'un serveur.
+model ShopItem {
+  id          Int      @id @default(autoincrement())
+  guildId     String
+  name        String
+  description String   @default("")
+  price       Int
+  /// Rôle attribué à l'achat (facultatif).
+  roleId      String?
+  /// Exemplaires restants ; vide = illimité.
+  stock       Int?
+  /// Nombre maximal d'exemplaires par membre ; vide = illimité.
+  maxPerUser  Int?
+  /// Faux : l'article n'est plus en vente mais reste dans les inventaires.
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  guild     GuildConfig     @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  inventory InventoryItem[]
+
+  @@unique([guildId, name])
+}
+
+/// Exemplaires d'un article possédés par un membre.
+model InventoryItem {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  userId    String
+  itemId    Int
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  item  ShopItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId, itemId])
+  @@index([itemId])
 }

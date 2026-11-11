@@ -92,7 +92,4 @@ export function textProgressBar(ratio: number, size = 12): string {
   return '▰'.repeat(filled) + '▱'.repeat(size - filled);
 }
 
-/** Nombre au format français avec des espaces ordinaires (« 12 345 »). */
-export function formatNumber(value: number): string {
-  return Math.round(value).toLocaleString('fr-FR').replace(/\s/g, ' ');
-}
+export { formatNumber } from '../../../utils/format';

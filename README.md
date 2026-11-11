@@ -21,11 +21,12 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 9. [Mise à jour du bot](#mise-à-jour-du-bot)
 10. [Architecture](#architecture)
 11. [Module Niveaux](#module-niveaux)
-12. [Ajouter une commande](#ajouter-une-commande)
-13. [Créer un module](#créer-un-module)
-14. [Permissions](#permissions)
-15. [Tests et qualité](#tests-et-qualité)
-16. [Dépannage](#dépannage)
+12. [Module Économie](#module-économie)
+13. [Ajouter une commande](#ajouter-une-commande)
+14. [Créer un module](#créer-un-module)
+15. [Permissions](#permissions)
+16. [Tests et qualité](#tests-et-qualité)
+17. [Dépannage](#dépannage)
 
 ## Fonctionnalités
 
@@ -38,6 +39,7 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 | 🎉 Divertissement | `/8ball` `/coinflip` `/dice` `/meme` `/joke` `/ship` `/hug` `/slap` `/poll` `/choose` |
 | 🧰 Utilitaires | `/help` `/ping` `/config view\|dm-sanctions\|timezone` `/module list\|enable\|disable` `/permissions allow\|deny\|reset\|list` `/preferences mp` |
 | ⭐ Niveaux *(à activer)* | `/rank [membre]` `/leaderboard` `/level config` `/level rewards add\|remove\|list` |
+| 🪙 Économie *(à activer)* | `/balance [membre]` `/daily` `/weekly` `/pay` `/shop` `/buy` `/inventory [membre]` `/economy leaderboard\|history` `/economy-admin config\|give\|take` `/shop-admin add\|edit\|remove` |
 
 Les modules marqués *(à activer)* sont inactifs sur un serveur tant qu'un administrateur n'a pas
 lancé `/module enable`.
@@ -49,6 +51,10 @@ Points notables :
   des annonces, ainsi que les salons et rôles qui ne rapportent pas d'XP. `/level rewards` attribue
   un rôle à un niveau donné. `/rank` affiche une carte en image, `/leaderboard` les 100 premiers.
   Détail dans [Module Niveaux](#module-niveaux).
+- **Économie** : une monnaie propre à chaque serveur, des récompenses quotidienne et hebdomadaire,
+  des gains en discutant, des paiements entre membres, une boutique (articles et rôles) et un
+  inventaire. Un solde ne peut jamais devenir négatif. Détail dans
+  [Module Économie](#module-économie).
 
 - **Modération** : chaque action exige une raison, reçoit un numéro de cas propre au serveur, est
   enregistrée en base et publiée dans le salon de logs de modération. La hiérarchie des rôles est
@@ -409,6 +415,11 @@ Les erreurs sont des `HttpError` dont le message, en français, peut être montr
 | `LevelConfig` | Réglages des niveaux : gains, progression, annonces, salons et rôles exclus |
 | `UserExperience` | XP, nombre de messages et dernier niveau constaté d'un membre sur un serveur |
 | `LevelReward` | Rôle attribué à un niveau (un rôle par niveau, un niveau par rôle) |
+| `EconomyConfig` | Réglages de l'économie : monnaie, récompenses, gains en discutant |
+| `EconomyAccount` | Portefeuille d'un membre sur un serveur, dates des dernières récompenses |
+| `EconomyTransaction` | Historique des mouvements (conservé 180 jours) |
+| `ShopItem` | Article de la boutique : prix, rôle éventuel, stock, limite par membre |
+| `InventoryItem` | Exemplaires d'un article possédés par un membre |
 
 Toutes les tables d'un serveur référencent `GuildConfig` (suppression en cascade). Les requêtes
 passent exclusivement par Prisma, avec des paramètres liés : aucune requête SQL n'est construite
@@ -451,6 +462,55 @@ forme d'embed.
 Pour ajouter une statistique à la carte, passez une entrée de plus dans `stats` lors de l'appel à
 `renderRankCard` (`src/modules/levels/commands/rank.ts`) ; la carte les affiche tant que la place
 le permet.
+
+## Module Économie
+
+Activation : `/module enable module:Économie`, puis `/economy-admin config`.
+
+**Monnaie.** Chaque serveur a sa propre monnaie (nom et symbole réglables) et ses propres
+portefeuilles : rien n'est partagé entre serveurs. Un portefeuille est créé à zéro à la première
+utilisation et ne peut pas dépasser un milliard.
+
+**Gagner de la monnaie.**
+
+| Source | Réglage par défaut | Remarque |
+|---|---|---|
+| `/daily` | 100 | Disponible 24 heures après la réclamation précédente |
+| `/weekly` | 500 | Disponible 7 jours après la réclamation précédente |
+| Messages | 1 à 3, un gain par minute au plus | Mettre le maximum à 0 pour désactiver |
+| `/pay` | — | Transfert entre deux membres, sans création de monnaie |
+| `/economy-admin give` | — | Ajout manuel par un administrateur, inscrit dans l'historique |
+
+Mettre une récompense à 0 la désactive. Les récompenses ne sont pas distribuées par une tâche de
+fond : le droit est calculé au moment où le membre tape la commande, à partir de la date de sa
+dernière réclamation.
+
+**Boutique.** `/shop-admin add nom:… prix:… [description] [role] [stock] [limite]` crée un article.
+Un article lié à un rôle attribue ce rôle à l'achat et ne s'achète qu'une fois par membre ; le bot
+doit avoir `Gérer les rôles` et un rôle placé au-dessus. `/shop-admin edit` modifie un article
+(`stock:-1` pour un stock illimité, `limite:0` pour aucune limite, `en-vente:False` pour le retirer
+de la vente en le laissant dans les inventaires). `/shop-admin remove` le supprime définitivement,
+y compris des inventaires, sans remboursement. Une boutique contient 50 articles au plus.
+
+`/buy` demande une confirmation. Si le rôle d'un article ne peut finalement pas être attribué,
+l'achat est annulé et remboursé.
+
+**Historique.** `/economy history` montre au membre ses 100 derniers mouvements (récompenses,
+paiements, achats, remboursements, ajustements d'un administrateur) avec le solde après chacun.
+Les gains obtenus en discutant ne sont pas détaillés, car ils sont trop nombreux. Les mouvements
+de plus de 180 jours sont supprimés chaque jour par une tâche planifiée.
+
+**Protections contre les abus.**
+
+- Un montant est toujours un entier strictement positif, borné ; un paiement à soi-même ou à un
+  bot est refusé.
+- Le solde est vérifié et débité dans la même requête : plusieurs dépenses simultanées ne peuvent
+  pas le rendre négatif. Une contrainte de la base de données l'interdit aussi, quel que soit le
+  code qui écrit.
+- Une récompense réclamée plusieurs fois au même instant n'est versée qu'une fois.
+- Le stock et la limite par membre sont décomptés dans la même transaction que le paiement : un
+  article en un seul exemplaire ne peut pas être vendu deux fois.
+- `/pay` a un délai de 10 secondes par membre ; les ajustements manuels sont journalisés.
 
 ## Ajouter une commande
 

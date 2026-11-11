@@ -27,10 +27,11 @@ const EXPECTED: Record<string, string[]> = {
   fun: ['8ball', 'coinflip', 'dice', 'meme', 'joke', 'ship', 'hug', 'slap', 'poll', 'choose'],
   utility: ['ping', 'help', 'module', 'permissions', 'config', 'preferences'],
   levels: ['rank', 'leaderboard', 'level'],
+  economy: ['balance', 'daily', 'weekly', 'pay', 'shop', 'buy', 'inventory', 'economy', 'economy-admin', 'shop-admin'],
 };
 
 /** Modules de la V2 : inactifs tant qu'un administrateur ne les active pas. */
-const DISABLED_BY_DEFAULT = ['levels'];
+const DISABLED_BY_DEFAULT = ['levels', 'economy'];
 
 const NAME_PATTERN = /^[\p{Ll}\p{N}_-]{1,32}$/u;
 
@@ -93,7 +94,7 @@ describe('chargement des modules', () => {
   });
 
   it('protège les commandes sensibles par une permission et un cooldown', () => {
-    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config', 'level'];
+    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config', 'level', 'economy-admin', 'shop-admin'];
     for (const name of sensitive) {
       const command = registry.commands.find((loaded) => loaded.data.name === name);
       expect(command?.userPermissions?.length, `/${name} : permission`).toBeGreaterThan(0);
@@ -122,6 +123,7 @@ describe('chargement des modules', () => {
     expect(count('logging')).toBe(14);
     expect(count('welcome')).toBe(2);
     expect(count('levels')).toBe(1);
+    expect(count('economy')).toBe(1);
   });
 
   it('laisse les modules de la V1 actifs par défaut et ceux de la V2 inactifs', () => {

@@ -14,6 +14,11 @@ export function fullTimestamp(date: Date | number): string {
   return `${timestamp(date, 'f')} (${timestamp(date, 'R')})`;
 }
 
+/** Nombre entier au format français avec des espaces ordinaires (« 12 345 »). */
+export function formatNumber(value: number): string {
+  return Math.round(value).toLocaleString('fr-FR').replace(/\s/g, ' ');
+}
+
 /** Tire un élément au hasard dans une liste non vide. */
 export function pickRandom<T>(items: readonly T[]): T {
   if (items.length === 0) throw new Error('pickRandom : liste vide');

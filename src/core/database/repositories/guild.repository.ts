@@ -18,7 +18,7 @@ export async function ensureGuild(guildId: string): Promise<void> {
 
 export async function updateGuildConfig(
   guildId: string,
-  data: { dmOnSanction?: boolean },
+  data: { dmOnSanction?: boolean; timezone?: string },
 ): Promise<GuildConfig> {
   const config = await prisma.guildConfig.upsert({
     where: { guildId },

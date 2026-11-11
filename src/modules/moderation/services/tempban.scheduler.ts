@@ -5,9 +5,10 @@ import {
   resolvePendingBans,
 } from '../../../core/database/repositories/moderation.repository';
 import { logger } from '../../../core/logger';
+import { scheduler } from '../../../core/scheduler';
 import { recordCase } from './moderation.service';
 
-const CHECK_INTERVAL_MS = 60_000;
+const CHECK_INTERVAL_SECONDS = 60;
 
 /**
  * Lève les bannissements temporaires arrivés à échéance.
@@ -59,11 +60,11 @@ async function liftExpiredBans(client: BotClient): Promise<void> {
   }
 }
 
-export function startTempBanScheduler(client: BotClient): void {
-  const timer = setInterval(() => {
-    liftExpiredBans(client).catch((error) =>
-      logger.error({ err: error }, 'Erreur du planificateur de bannissements temporaires'),
-    );
-  }, CHECK_INTERVAL_MS);
-  timer.unref();
+/** Déclare la levée des bannissements temporaires auprès du planificateur central. */
+export function registerTempBanTask(): void {
+  scheduler.register({
+    name: 'moderation:tempbans',
+    intervalSeconds: CHECK_INTERVAL_SECONDS,
+    run: ({ client }) => liftExpiredBans(client),
+  });
 }

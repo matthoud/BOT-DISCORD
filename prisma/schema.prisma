@@ -32,6 +32,8 @@ model GuildConfig {
   caseCounter  Int      @default(0)
   /// Prévenir les membres sanctionnés par message privé.
   dmOnSanction Boolean  @default(true)
+  /// Fuseau horaire (identifiant IANA) utilisé pour interpréter les dates saisies sur ce serveur.
+  timezone     String   @default("Europe/Paris")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -51,6 +53,19 @@ model UserConfig {
   dmNotifications Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+/// État d'une tâche périodique du planificateur (global, indépendant des serveurs).
+model ScheduledTask {
+  /// Identifiant de la tâche, de la forme `module:tache`.
+  name                String    @id
+  lastRunAt           DateTime?
+  lastSuccessAt       DateTime?
+  /// Prochaine échéance ; une échéance dépassée pendant un arrêt est rattrapée au redémarrage.
+  nextRunAt           DateTime?
+  consecutiveFailures Int       @default(0)
+  lastError           String?
+  updatedAt           DateTime  @updatedAt
 }
 
 /// Activation d'un module pour un serveur, avec ses réglages libres.

@@ -8,10 +8,16 @@ import { handleInteractionError } from '../errors/handler';
 import { logger } from '../logger';
 import { assertCommandAccess } from '../permissions/guard';
 import { permissionNames } from '../permissions/names';
+import { scheduler } from '../scheduler';
 import { parseComponentId } from '../ui/customId';
 
 const cooldowns = new CooldownManager();
-setInterval(() => cooldowns.sweep(), 60_000).unref();
+scheduler.register({
+  name: 'core:cooldowns',
+  intervalSeconds: 60,
+  persist: false,
+  run: async () => cooldowns.sweep(),
+});
 
 async function assertModuleEnabled(
   client: BotClient,

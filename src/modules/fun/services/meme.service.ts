@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { httpClient } from '../../../core/http/client';
 
 const MEME_API_URL = 'https://meme-api.com/gimme';
 const REQUEST_TIMEOUT_MS = 5000;
@@ -7,8 +8,8 @@ const MAX_ATTEMPTS = 3;
 // La réponse d'une API externe n'est jamais supposée fiable : elle est validée avant usage.
 const memeSchema = z.object({
   title: z.string(),
-  url: z.string().url().startsWith('https://'),
-  postLink: z.string().url(),
+  url: z.url({ protocol: /^https$/ }),
+  postLink: z.url({ protocol: /^https?$/ }),
   subreddit: z.string(),
   author: z.string(),
   nsfw: z.boolean(),
@@ -24,12 +25,10 @@ export type Meme = z.infer<typeof memeSchema>;
 export async function fetchMeme(): Promise<Meme | null> {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
-      const response = await fetch(MEME_API_URL, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-      if (!response.ok) continue;
-      const parsed = memeSchema.safeParse(await response.json());
-      if (parsed.success && !parsed.data.nsfw && !parsed.data.spoiler) return parsed.data;
+      const meme = await httpClient.getJson(MEME_API_URL, memeSchema, { timeoutMs: REQUEST_TIMEOUT_MS });
+      if (!meme.nsfw && !meme.spoiler) return meme;
     } catch {
-      // Délai dépassé ou erreur réseau : nouvel essai.
+      // Délai dépassé, erreur réseau ou réponse invalide : nouvel essai.
     }
   }
   return null;

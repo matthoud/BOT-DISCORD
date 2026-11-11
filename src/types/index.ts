@@ -70,6 +70,14 @@ export interface BotModule {
   emoji: string;
   /** Faux pour les modules indispensables, qui ne peuvent pas être désactivés. */
   canDisable: boolean;
-  /** Appelé une fois au démarrage, après le chargement de tous les modules. */
+  /**
+   * État du module sur un serveur qui ne l'a jamais configuré (activé par défaut).
+   * À mettre à `false` pour un module qui ne doit rien faire sans décision d'un administrateur.
+   */
+  defaultEnabled?: boolean;
+  /**
+   * Appelé une fois au démarrage, après le chargement de tous les modules et avant la connexion
+   * à Discord. C'est ici qu'un module déclare ses tâches périodiques (`scheduler.register`).
+   */
   init?(client: BotClient): void | Promise<void>;
 }

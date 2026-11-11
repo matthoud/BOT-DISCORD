@@ -1,6 +1,9 @@
+import { Events } from 'discord.js';
 import { env } from './core/config/env';
 import { BotClient } from './core/client';
 import { prisma } from './core/database/prisma';
+import { registerModuleDefaults } from './core/database/repositories/module.repository';
+import { scheduler } from './core/scheduler';
 import { registerCoreEvents, registerModuleEvents } from './core/handlers/events';
 import { loadModules } from './core/handlers/loader';
 import { logger } from './core/logger';
@@ -13,6 +16,7 @@ async function shutdown(signal: string, exitCode = 0): Promise<void> {
   shuttingDown = true;
   logger.info({ signal }, 'Arrêt du bot en cours');
   try {
+    scheduler.stop();
     await client.destroy();
     await prisma.$disconnect();
   } catch (error) {
@@ -37,6 +41,7 @@ process.on('uncaughtException', (error) => {
 async function main(): Promise<void> {
   const registry = loadModules();
   for (const botModule of registry.modules) client.modules.set(botModule.id, botModule);
+  registerModuleDefaults(registry.modules);
   for (const command of registry.commands) client.commands.set(command.data.name, command);
   for (const component of registry.components) client.components.set(component.id, component);
 
@@ -60,6 +65,9 @@ async function main(): Promise<void> {
   for (const botModule of registry.modules) {
     await botModule.init?.(client);
   }
+
+  // Les tâches périodiques ne démarrent qu'une fois le bot connecté à Discord.
+  client.once(Events.ClientReady, () => void scheduler.start(client));
 
   await client.login(env.DISCORD_TOKEN);
 }

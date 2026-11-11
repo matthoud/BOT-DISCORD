@@ -35,7 +35,7 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 | 📜 Logs | `/logs setup` |
 | 👋 Bienvenue | `/welcome setup` |
 | 🎉 Divertissement | `/8ball` `/coinflip` `/dice` `/meme` `/joke` `/ship` `/hug` `/slap` `/poll` `/choose` |
-| 🧰 Utilitaires | `/help` `/ping` `/config view\|dm-sanctions` `/module list\|enable\|disable` `/permissions allow\|deny\|reset\|list` `/preferences mp` |
+| 🧰 Utilitaires | `/help` `/ping` `/config view\|dm-sanctions\|timezone` `/module list\|enable\|disable` `/permissions allow\|deny\|reset\|list` `/preferences mp` |
 
 Points notables :
 
@@ -211,8 +211,8 @@ docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > sauv
 ### Sans Docker (systemd)
 
 ```bash
-# Node.js 20 (dépôt NodeSource) et PostgreSQL
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# Node.js 22 (dépôt NodeSource) et PostgreSQL
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs postgresql git
 
 # Utilisateur dédié, sans shell
@@ -274,6 +274,16 @@ sudo systemctl restart discord-bot
 Les migrations sont appliquées automatiquement au redémarrage. Toute la configuration étant en
 base, un redémarrage ne fait rien perdre ; seuls les cooldowns en cours sont remis à zéro.
 
+Les migrations ne font qu'ajouter des tables et des colonnes. Par précaution, sauvegardez tout de
+même la base avant une mise à jour qui en contient :
+
+```bash
+# Avec Docker
+docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > sauvegarde-$(date +%F).sql
+# Sans Docker
+sudo -u postgres pg_dump <nom-de-la-base> > sauvegarde-$(date +%F).sql
+```
+
 ## Architecture
 
 ```text
@@ -287,6 +297,8 @@ src/
 │   ├── handlers/            Chargement des modules, routage des interactions et événements
 │   ├── permissions/         Garde d'accès, hiérarchie des rôles, libellés
 │   ├── cooldowns/           Cooldowns par commande, membre et serveur
+│   ├── scheduler/           Planificateur unique des tâches périodiques
+│   ├── http/                Client HTTP sécurisé pour tous les appels vers des sites externes
 │   ├── errors/              BotError + gestion globale des erreurs
 │   ├── events/bus.ts        Bus interne pour la communication entre modules
 │   └── ui/                  Embeds, couleurs, confirmation, pagination, customId
@@ -299,7 +311,7 @@ src/
 │       └── services/        Logique métier du module
 ├── scripts/                 Déploiement des commandes
 ├── types/                   Contrats : Command, BotEvent, ComponentHandler, BotModule
-└── utils/                   Fonctions génériques (durées, formatage, cache)
+└── utils/                   Fonctions génériques (durées, formatage, cache, fuseaux horaires)
 prisma/                      Schéma et migrations
 tests/                       Tests automatisés
 ```
@@ -325,11 +337,55 @@ sont appelés par la commande, car ils dépendent de la cible.
 - **Temporaires** : identifiants préfixés `tmp:`, gérés par un collecteur local (confirmation,
   pagination). Ils expirent d'eux-mêmes.
 
+### Tâches périodiques
+
+Toutes les tâches de fond passent par le planificateur de `core/scheduler/` : aucun module ne crée
+son propre minuteur. Un module déclare ses tâches dans la fonction `init` de son manifeste :
+
+```ts
+import { scheduler } from '../../core/scheduler';
+
+scheduler.register({
+  name: 'tickets:fermeture-auto',   // unique, de la forme module:tache
+  intervalSeconds: 300,
+  timeoutSeconds: 60,               // facultatif, 5 minutes par défaut
+  run: async ({ client, signal }) => { /* … */ },
+});
+```
+
+Le planificateur garantit que :
+
+- une tâche ne s'exécute jamais deux fois en même temps ;
+- une tâche en échec est retentée avec un délai qui double à chaque échec (une heure au plus, ou
+  l'intervalle s'il est plus long), sans retarder les autres ;
+- une tâche trop longue est considérée en échec et son `signal` est annulé ;
+- l'échéance de chaque tâche est enregistrée dans la table `ScheduledTask` : après un redémarrage,
+  une tâche en retard repart aussitôt et les autres attendent leur heure.
+
+Les tâches démarrent une fois le bot connecté à Discord. Chaque échec est journalisé avec le nom
+de la tâche et le délai avant la prochaine tentative.
+
+### Appels vers des sites externes
+
+Tout appel HTTP sortant passe par `httpClient` (`core/http/client.ts`), jamais par `fetch`
+directement. Les adresses sont traitées comme non fiables :
+
+- seuls HTTP et HTTPS sont acceptés, sans identifiants dans l'adresse ;
+- les adresses privées, locales et réservées sont refusées, y compris après une redirection ou
+  lorsqu'un nom de domaine public pointe vers une adresse interne ;
+- la durée (10 s par défaut) et la taille de la réponse (2 Mo par défaut, avant comme après
+  décompression) sont bornées ;
+- les requêtes vers un même hôte sont espacées d'une seconde ;
+- `getJson(url, schema)` valide la réponse avec un schéma zod avant de la retourner.
+
+Les erreurs sont des `HttpError` dont le message, en français, peut être montré à l'utilisateur.
+
 ### Modèle de données
 
 | Table | Contenu |
 |---|---|
-| `GuildConfig` | Racine d'un serveur : préférences générales, compteur de cas |
+| `GuildConfig` | Racine d'un serveur : préférences générales, fuseau horaire, compteur de cas |
+| `ScheduledTask` | État des tâches périodiques (globale, sans lien avec un serveur) |
 | `UserConfig` | Préférences d'un utilisateur |
 | `ModuleConfig` | Activation et réglages d'un module pour un serveur |
 | `ModerationCase` | Chaque action de modération, numérotée par serveur |
@@ -400,7 +456,8 @@ Règles à suivre :
      description: 'Support par tickets.',
      emoji: '🎫',
      canDisable: true,
-     // init(client) { /* planificateur, abonnement au bus interne… */ },
+     // defaultEnabled: false,  // le module reste inactif tant qu'un administrateur ne l'active pas
+     // init(client) { /* tâches périodiques, abonnement au bus interne… */ },
    };
 
    export default ticketsModule;
@@ -443,7 +500,12 @@ Règles à suivre :
 6. Pour réagir à ce que fait un autre module sans en dépendre, utilisez le bus interne
    (`core/events/bus.ts`) : la modération y publie `moderationCase`, que le module de logs écoute.
 
-Le module apparaît automatiquement dans `/help`, `/module list` et `/config view`.
+7. Tâche de fond : déclarez-la dans `init` avec `scheduler.register` (voir « Tâches périodiques »).
+   Appel à un site externe : utilisez `httpClient` (voir « Appels vers des sites externes »).
+
+Le module apparaît automatiquement dans `/help`, `/module list` et `/config view`. Sans
+`defaultEnabled: false`, il est actif sur tous les serveurs dès son installation ; avec, chaque
+serveur l'active par `/module enable`.
 
 ## Permissions
 
@@ -473,7 +535,9 @@ npm test            # tests automatisés (Vitest)
 
 Les tests couvrent la hiérarchie des rôles, la décision d'accès, les durées, les variables de
 bienvenue, les cooldowns, le cache, et valident que chaque commande chargée respecte les
-contraintes de Discord et que chaque commande sensible est protégée.
+contraintes de Discord et que chaque commande sensible est protégée. Ils couvrent aussi le
+planificateur (intervalles, absence de chevauchement, reprise après échec et après redémarrage) et
+le client HTTP (adresses internes, redirections, taille, délai), à l'aide d'un serveur local.
 
 ## Dépannage
 

@@ -1,5 +1,5 @@
 import type { BotModule } from '../../types';
-import { startTempBanScheduler } from './services/tempban.scheduler';
+import { registerTempBanTask } from './services/tempban.scheduler';
 
 const moderationModule: BotModule = {
   id: 'moderation',
@@ -7,8 +7,8 @@ const moderationModule: BotModule = {
   description: 'Sanctions, avertissements, historique et sanctions automatiques.',
   emoji: '🛡️',
   canDisable: true,
-  init(client) {
-    startTempBanScheduler(client);
+  init() {
+    registerTempBanTask();
   },
 };
 

@@ -8,8 +8,10 @@ import { getLoggingConfig } from '../../../core/database/repositories/logging.re
 import { getModuleStates } from '../../../core/database/repositories/module.repository';
 import { listCustomPermissions } from '../../../core/database/repositories/permission.repository';
 import { getWelcomeConfig } from '../../../core/database/repositories/welcome.repository';
+import { BotError } from '../../../core/errors/BotError';
 import { baseEmbed, successEmbed } from '../../../core/ui/embeds';
 import type { Command } from '../../../types';
+import { formatNowIn, isValidTimezone, searchTimezones } from '../../../utils/timezone';
 
 const channel = (id: string | null | undefined) => (id ? `<#${id}>` : '*non défini*');
 
@@ -28,12 +30,48 @@ const command: Command = {
         .addBooleanOption((option) =>
           option.setName('actif').setDescription('Envoyer un message privé').setRequired(true),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('timezone')
+        .setDescription('Définit le fuseau horaire utilisé pour les dates saisies sur ce serveur.')
+        .addStringOption((option) =>
+          option
+            .setName('fuseau')
+            .setDescription('Fuseau horaire, par exemple Europe/Paris')
+            .setRequired(true)
+            .setAutocomplete(true),
+        ),
     ),
   userPermissions: [PermissionFlagsBits.ManageGuild],
   cooldown: 3,
 
+  async autocomplete(interaction) {
+    const zones = searchTimezones(interaction.options.getFocused());
+    await interaction.respond(zones.map((zone) => ({ name: zone.replace(/_/g, ' '), value: zone })));
+  },
+
   async execute(interaction) {
     const guildId = interaction.guildId;
+
+    if (interaction.options.getSubcommand() === 'timezone') {
+      const timezone = interaction.options.getString('fuseau', true).trim();
+      if (!isValidTimezone(timezone)) {
+        throw new BotError(
+          'Fuseau horaire inconnu. Choisissez-le dans la liste proposée, par exemple `Europe/Paris`.',
+        );
+      }
+      await updateGuildConfig(guildId, { timezone });
+      await interaction.reply({
+        embeds: [
+          successEmbed(
+            `Le fuseau horaire du serveur est maintenant **${timezone}** (il y est ${formatNowIn(timezone)}).`,
+          ),
+        ],
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
     if (interaction.options.getSubcommand() === 'dm-sanctions') {
       const enabled = interaction.options.getBoolean('actif', true);
@@ -69,6 +107,7 @@ const command: Command = {
       .setTitle(`⚙️ Configuration — ${interaction.guild.name}`)
       .addFields(
         { name: 'Modules', value: modules, inline: true },
+        { name: 'Général', value: `Fuseau horaire : ${guildConfig.timezone}`, inline: true },
         {
           name: 'Modération',
           value: `MP aux membres sanctionnés : ${guildConfig.dmOnSanction ? 'oui' : 'non'}\nCas enregistrés : ${guildConfig.caseCounter}`,

@@ -32,7 +32,7 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 |---|---|
 | 🛠️ Administration | `/serverinfo` `/userinfo` `/avatar` `/role add\|remove\|info` `/clear` `/slowmode` `/lock` `/unlock` `/nick` `/announce` |
 | 🛡️ Modération | `/ban` `/unban` `/kick` `/timeout` `/untimeout` `/warn` `/warnings` `/clearwarnings` `/history` `/sanctions add\|remove\|list` |
-| 📜 Logs | `/logs setup` |
+| 📜 Logs | `/logs setup\|test` |
 | 👋 Bienvenue | `/welcome setup` |
 | 🎉 Divertissement | `/8ball` `/coinflip` `/dice` `/meme` `/joke` `/ship` `/hug` `/slap` `/poll` `/choose` |
 | 🧰 Utilitaires | `/help` `/ping` `/config view\|dm-sanctions\|timezone` `/module list\|enable\|disable` `/permissions allow\|deny\|reset\|list` `/preferences mp` |
@@ -178,7 +178,8 @@ npm start
 ## Premiers pas sur un serveur
 
 1. `/help` : vue d'ensemble des modules et commandes.
-2. `/logs setup` : choisissez un salon par catégorie de logs.
+2. `/logs setup` : choisissez un salon par catégorie de logs, puis `/logs test` pour vérifier que
+   chaque salon reçoit bien un message (la commande indique la cause en cas de problème).
 3. `/welcome setup` : choisissez le salon, ajustez les messages, cliquez sur **Aperçu**, puis **Activer**.
 4. `/sanctions add` : définissez vos sanctions automatiques.
 5. `/config view` : résumé de la configuration du serveur.

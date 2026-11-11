@@ -23,11 +23,12 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 11. [Module Niveaux](#module-niveaux)
 12. [Module Économie](#module-économie)
 13. [Module Suggestions](#module-suggestions)
-14. [Ajouter une commande](#ajouter-une-commande)
-15. [Créer un module](#créer-un-module)
-16. [Permissions](#permissions)
-17. [Tests et qualité](#tests-et-qualité)
-18. [Dépannage](#dépannage)
+14. [Module Sondages](#module-sondages)
+15. [Ajouter une commande](#ajouter-une-commande)
+16. [Créer un module](#créer-un-module)
+17. [Permissions](#permissions)
+18. [Tests et qualité](#tests-et-qualité)
+19. [Dépannage](#dépannage)
 
 ## Fonctionnalités
 
@@ -37,7 +38,8 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 | 🛡️ Modération | `/ban` `/unban` `/kick` `/timeout` `/untimeout` `/warn` `/warnings` `/clearwarnings` `/history` `/sanctions add\|remove\|list` |
 | 📜 Logs | `/logs setup\|test` |
 | 👋 Bienvenue | `/welcome setup` |
-| 🎉 Divertissement | `/8ball` `/coinflip` `/dice` `/meme` `/joke` `/ship` `/hug` `/slap` `/poll` `/choose` |
+| 🎉 Divertissement | `/8ball` `/coinflip` `/dice` `/meme` `/joke` `/ship` `/hug` `/slap` `/choose` |
+| 📊 Sondages | `/poll create` `/poll results` |
 | 🧰 Utilitaires | `/help` `/ping` `/config view\|dm-sanctions\|timezone` `/module list\|enable\|disable` `/permissions allow\|deny\|reset\|list` `/preferences mp` |
 | ⭐ Niveaux *(à activer)* | `/rank [membre]` `/leaderboard` `/level config` `/level rewards add\|remove\|list` |
 | 🪙 Économie *(à activer)* | `/balance [membre]` `/daily` `/weekly` `/pay` `/shop` `/buy` `/inventory [membre]` `/economy leaderboard\|history` `/economy-admin config\|give\|take` `/shop-admin add\|edit\|remove` |
@@ -60,6 +62,9 @@ Points notables :
 - **Suggestions** : `/suggest` publie l'idée d'un membre dans un salon dédié, où chacun vote par
   boutons ; le staff accepte, refuse ou répond depuis le message. Détail dans
   [Module Suggestions](#module-suggestions).
+- **Sondages** : `/poll create` publie un sondage à boutons (2 à 10 réponses, choix unique ou
+  multiple, durée de 1 minute à 30 jours, résultats en direct ou à la clôture). Détail dans
+  [Module Sondages](#module-sondages).
 
 - **Modération** : chaque action exige une raison, reçoit un numéro de cas propre au serveur, est
   enregistrée en base et publiée dans le salon de logs de modération. La hiérarchie des rôles est
@@ -428,6 +433,9 @@ Les erreurs sont des `HttpError` dont le message, en français, peut être montr
 | `SuggestionConfig` | Salon des suggestions, rôle de staff, compteur de numérotation |
 | `Suggestion` | Suggestion numérotée par serveur : texte, statut, message public, réponse du staff |
 | `SuggestionVote` | Vote d'un membre sur une suggestion (un seul par membre) |
+| `Poll` | Sondage : question, mode, échéance, date de clôture, message public |
+| `PollOption` | Réponse proposée dans un sondage |
+| `PollVote` | Vote d'un membre pour une réponse |
 
 Toutes les tables d'un serveur référencent `GuildConfig` (suppression en cascade). Les requêtes
 passent exclusivement par Prisma, avec des paramètres liés : aucune requête SQL n'est construite
@@ -548,6 +556,37 @@ S'il a été supprimé à la main, la décision est tout de même enregistrée e
 récente à la plus ancienne, avec les votes et un lien vers chaque message ; le pied de page donne
 le nombre de suggestions en attente, acceptées et refusées. `/suggestions view numero:12` affiche
 une suggestion précise.
+
+## Module Sondages
+
+Ce module est actif par défaut : il remplace la commande `/poll` de la première version, qui
+utilisait les sondages natifs de Discord. La commande s'appelle désormais `/poll create`.
+
+**Créer.** `/poll create question:… choix1:… choix2:… [choix3 à choix10] [duree] [multiple]
+[masquer]` publie le sondage dans le salon courant.
+
+| Option | Effet | Par défaut |
+|---|---|---|
+| `duree` | `30m`, `2h`, `3j`… de 1 minute à 30 jours | 24 heures |
+| `multiple` | Autorise plusieurs réponses par membre | non |
+| `masquer` | N'affiche les résultats qu'à la clôture | non |
+
+Un membre peut avoir 5 sondages ouverts à la fois par serveur. Pour réserver la création de
+sondages à certains rôles, utilisez `/permissions allow commande:poll`.
+
+**Voter.** Chaque réponse a son bouton. Recliquer sur une réponse retire le vote ; en choix unique,
+cliquer sur une autre remplace la précédente. Le membre reçoit en privé le rappel de son vote. Les
+pourcentages sont calculés sur les votes exprimés.
+
+**Clore.** Le sondage se termine à l'échéance : le bot affiche les résultats définitifs, marque la
+ou les réponses en tête et retire les boutons. Le contrôle se fait toutes les 30 secondes ; un
+sondage arrivé à échéance pendant un arrêt du bot est clos au redémarrage, et aucun vote n'est
+accepté après l'échéance. Le bouton « 🔒 Clore le sondage » permet une clôture anticipée ; il est
+réservé à l'auteur du sondage et aux membres ayant `Gérer les messages`.
+
+**Consulter.** `/poll results sondage:…` affiche en privé les résultats d'un des 50 derniers
+sondages du serveur. Tant qu'un sondage à résultats masqués est ouvert, seuls son auteur et les
+modérateurs peuvent les consulter. Un sondage est conservé 90 jours après sa clôture.
 
 ## Ajouter une commande
 

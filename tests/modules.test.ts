@@ -24,7 +24,9 @@ const EXPECTED: Record<string, string[]> = {
   moderation: ['ban', 'unban', 'kick', 'timeout', 'untimeout', 'warn', 'warnings', 'clearwarnings', 'history', 'sanctions'],
   logging: ['logs'],
   welcome: ['welcome'],
-  fun: ['8ball', 'coinflip', 'dice', 'meme', 'joke', 'ship', 'hug', 'slap', 'poll', 'choose'],
+  fun: ['8ball', 'coinflip', 'dice', 'meme', 'joke', 'ship', 'hug', 'slap', 'choose'],
+  // Remplace la commande /poll que le module fun fournissait en V1.
+  polls: ['poll'],
   utility: ['ping', 'help', 'module', 'permissions', 'config', 'preferences'],
   levels: ['rank', 'leaderboard', 'level'],
   economy: ['balance', 'daily', 'weekly', 'pay', 'shop', 'buy', 'inventory', 'economy', 'economy-admin', 'shop-admin'],
@@ -44,6 +46,8 @@ const OPEN_COMPONENTS = [
   'suggestions:manage',
   'suggestions:action',
   'suggestions:decide',
+  'polls:vote',
+  'polls:close',
 ];
 
 const NAME_PATTERN = /^[\p{Ll}\p{N}_-]{1,32}$/u;

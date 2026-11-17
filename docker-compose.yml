@@ -19,6 +19,20 @@ services:
       timeout: 5s
       retries: 10
 
+  # Base jetable pour `npm run test:integration` (données en mémoire, effacées à l'arrêt) :
+  # docker compose --profile test up -d db-test
+  db-test:
+    image: postgres:16-alpine
+    profiles: ['test']
+    environment:
+      POSTGRES_USER: bot_test
+      POSTGRES_PASSWORD: bot_test
+      POSTGRES_DB: bot_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - '127.0.0.1:55432:5432'
+
   bot:
     build: .
     restart: unless-stopped

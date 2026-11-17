@@ -965,6 +965,33 @@ contraintes de Discord et que chaque commande sensible est protégée. Ils couvr
 planificateur (intervalles, absence de chevauchement, reprise après échec et après redémarrage) et
 le client HTTP (adresses internes, redirections, taille, délai), à l'aide d'un serveur local.
 
+**Tests d'intégration.** Ils s'exécutent sur une vraie base PostgreSQL, jetable :
+
+```bash
+docker compose --profile test up -d db-test     # base en mémoire sur 127.0.0.1:55432
+TEST_DATABASE_URL=postgresql://bot_test:bot_test@127.0.0.1:55432/bot_test npm run test:integration
+docker compose --profile test down              # arrêt : les données disparaissent
+```
+
+Les tables sont vidées à chaque fichier de tests : par sécurité, la commande refuse toute base
+dont le nom ne contient pas « test ». Ces tests vérifient, avec de nombreux accès simultanés :
+
+- l'absence de doublon : numéros de cas et de suggestions, votes, inscriptions, récompenses,
+  achats, articles RSS et offres gaming publiés une seule fois ;
+- les limites : capacité des événements, stock, 25 flux, soldes jamais négatifs (contraintes en
+  base comprises) ;
+- le redémarrage : échéances des tâches relues en base, tâches en retard rattrapées, échecs
+  conservés, vérification RSS interrompue reprise, offre réservée avant un arrêt jamais republiée ;
+- plusieurs serveurs : données et activations séparées, une offre annoncée une fois par serveur,
+  suppression d'un serveur sans effet sur les autres.
+
+**Ressources mesurées** (5 serveurs, 125 flux RSS de 50 articles, synchronisation GamerPower réelle) :
+environ 150 Mo de mémoire pour le processus, hors cache Discord ; un tour complet de vérification
+RSS en une seconde environ ; 4,5 Mo en base pour 12 500 empreintes d'articles.
+
+**Tests sur Discord.** Ils ne peuvent pas être automatisés : la liste à suivre après chaque
+déploiement est dans [docs/tests-discord.md](docs/tests-discord.md).
+
 ## Dépannage
 
 | Symptôme | Cause probable |

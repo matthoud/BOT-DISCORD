@@ -2,7 +2,7 @@ import { prisma } from '../database/prisma';
 import { Scheduler, type TaskState, type TaskStore } from './Scheduler';
 
 /** Conserve l'état des tâches dans la table `ScheduledTask`. */
-const prismaTaskStore: TaskStore = {
+export const prismaTaskStore: TaskStore = {
   async load(names: string[]): Promise<TaskState[]> {
     if (names.length === 0) return [];
     return prisma.scheduledTask.findMany({

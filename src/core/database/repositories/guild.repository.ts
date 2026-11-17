@@ -14,6 +14,11 @@ export async function getGuildConfig(guildId: string): Promise<GuildConfig> {
   });
 }
 
+/** Oublie la configuration mise en cache (après une modification faite hors de ce fichier). */
+export function invalidateGuildConfig(guildId: string): void {
+  cache.delete(guildId);
+}
+
 /** Garantit l'existence de la ligne racine du serveur (requise par les clés étrangères). */
 export async function ensureGuild(guildId: string): Promise<void> {
   await getGuildConfig(guildId);

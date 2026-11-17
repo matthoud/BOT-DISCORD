@@ -1,6 +1,12 @@
-import type { CaseType, ModerationCase, SanctionAction, SanctionRule, Warning } from '@prisma/client';
+import type {
+  CaseType,
+  ModerationCase,
+  SanctionAction,
+  SanctionRule,
+  Warning,
+} from '@prisma/client';
 import { prisma } from '../prisma';
-import { ensureGuild } from './guild.repository';
+import { ensureGuild, invalidateGuildConfig } from './guild.repository';
 
 export interface CreateCaseInput {
   guildId: string;
@@ -19,7 +25,7 @@ export interface CreateCaseInput {
 /** Crée un cas avec un numéro séquentiel propre au serveur (transaction atomique). */
 export async function createCase(input: CreateCaseInput): Promise<ModerationCase> {
   await ensureGuild(input.guildId);
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const guild = await tx.guildConfig.update({
       where: { guildId: input.guildId },
       data: { caseCounter: { increment: 1 } },
@@ -40,6 +46,9 @@ export async function createCase(input: CreateCaseInput): Promise<ModerationCase
       },
     });
   });
+  // Le compteur de cas a changé : la configuration en cache (affichée par /config view) est périmée.
+  invalidateGuildConfig(input.guildId);
+  return created;
 }
 
 export async function listCases(

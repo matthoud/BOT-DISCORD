@@ -25,11 +25,12 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 13. [Module Suggestions](#module-suggestions)
 14. [Module Sondages](#module-sondages)
 15. [Module Événements](#module-événements)
-16. [Ajouter une commande](#ajouter-une-commande)
-17. [Créer un module](#créer-un-module)
-18. [Permissions](#permissions)
-19. [Tests et qualité](#tests-et-qualité)
-20. [Dépannage](#dépannage)
+16. [Module Flux RSS](#module-flux-rss)
+17. [Ajouter une commande](#ajouter-une-commande)
+18. [Créer un module](#créer-un-module)
+19. [Permissions](#permissions)
+20. [Tests et qualité](#tests-et-qualité)
+21. [Dépannage](#dépannage)
 
 ## Fonctionnalités
 
@@ -46,6 +47,7 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 | 🪙 Économie *(à activer)* | `/balance [membre]` `/daily` `/weekly` `/pay` `/shop` `/buy` `/inventory [membre]` `/economy leaderboard\|history` `/economy-admin config\|give\|take` `/shop-admin add\|edit\|remove` |
 | 💡 Suggestions *(à activer)* | `/suggest` `/suggestions list\|view` `/suggestions-admin config` |
 | 📅 Événements *(à activer)* | `/event list` `/event-admin create\|edit\|delete` `/reminder create\|list\|delete` |
+| 📡 Flux RSS *(à activer)* | `/rss add\|remove\|list\|info\|test\|pause\|resume\|refresh\|edit\|filters` `/rss config view\|category-add\|category-edit\|category-remove` |
 
 Les modules marqués *(à activer)* sont inactifs sur un serveur tant qu'un administrateur n'a pas
 lancé `/module enable`.
@@ -70,6 +72,9 @@ Points notables :
 - **Événements** : annonce avec date, description, image, inscriptions par boutons, nombre de
   places et rappel automatique avant le début ; rappels personnels avec `/reminder`. Les dates
   sont lues dans le fuseau horaire du serveur. Détail dans [Module Événements](#module-événements).
+- **Flux RSS** : n'importe quel flux RSS ou Atom publié dans un salon, avec filtres par mots-clés,
+  auteurs et catégories, mots prioritaires, catégories d'affichage et aucun doublon. Détail dans
+  [Module Flux RSS](#module-flux-rss).
 
 - **Modération** : chaque action exige une raison, reçoit un numéro de cas propre au serveur, est
   enregistrée en base et publiée dans le salon de logs de modération. La hiérarchie des rôles est
@@ -444,6 +449,9 @@ Les erreurs sont des `HttpError` dont le message, en français, peut être montr
 | `Event` | Événement : date, annonce, capacité, échéance et état du rappel |
 | `EventParticipant` | Réponse d'un membre à un événement (une seule par membre) |
 | `Reminder` | Rappel personnel : échéance, salon d'origine, état de l'envoi |
+| `RssFeed` | Flux suivi : adresse, salon, présentation, filtres, échéance, état et dernière erreur |
+| `RssItem` | Empreinte d'un article déjà vu dans un flux (anti-doublon) |
+| `RssCategory` | Catégorie de flux créée par un serveur : nom, emoji, couleur, mise en page |
 
 Toutes les tables d'un serveur référencent `GuildConfig` (suppression en cascade). Les requêtes
 passent exclusivement par Prisma, avec des paramètres liés : aucune requête SQL n'est construite
@@ -652,6 +660,101 @@ ce salon n'est plus accessible. Un rappel dû pendant un arrêt du bot part au r
 qui échoue est retenté deux fois, puis abandonné. Chaque membre peut avoir 10 rappels en attente
 par serveur, au plus un an à l'avance ; `/reminder list` les affiche et `/reminder delete` en
 supprime un.
+
+## Module Flux RSS
+
+Activation : `/module enable module:Flux RSS`. Toutes les commandes `/rss` exigent la permission
+`Gérer le serveur`. Aucun site n'est contacté tant que le module est désactivé.
+
+**Ajouter un flux.** `/rss add url:… [salon] [nom] [categorie] [intervalle] [resume] [image]
+[mention]` télécharge l'adresse, vérifie qu'il s'agit d'un flux RSS 2.0, RSS 1.0 (RDF) ou Atom, puis
+l'enregistre. Si l'adresse est une page web qui annonce un flux (balise `<link rel="alternate">`),
+ce flux est utilisé et la réponse le signale. À l'ajout, seul l'article le plus récent est publié,
+pour montrer le rendu ; les autres sont mémorisés comme déjà lus.
+
+| Option | Effet | Par défaut |
+|---|---|---|
+| `salon` | Salon de publication (le membre et le bot doivent pouvoir y écrire) | salon courant |
+| `nom` | Nom affiché en tête des articles | titre du flux |
+| `categorie` | Catégorie, qui fixe la couleur, l'emoji et la mise en page | Autre |
+| `intervalle` | Vérification toutes les 10 min, 15 min, 30 min, 1 h, 2 h, 6 h, 12 h ou 24 h | 30 minutes |
+| `resume` / `image` | Afficher le résumé / l'image de l'article | oui |
+| `mention` | Rôle mentionné à chaque nouvel article (jamais @everyone) | aucun |
+
+Un serveur peut suivre 25 flux. Un même flux ne peut pas être publié deux fois dans le même salon.
+
+**Gérer les flux.** `/rss list` affiche les flux et leur état (🟢 actif, ⏸️ en pause, ⚠️ en échec),
+`/rss info` le détail d'un flux (dernières vérifications, dernière erreur, filtres), `/rss edit`
+modifie ses options (`sans-mention:True` retire le rôle), `/rss pause` et `/rss resume` le
+suspendent et le reprennent, `/rss refresh` le vérifie immédiatement (une fois par minute au plus),
+`/rss remove` le supprime après confirmation. `/rss test url:…` ou `/rss test flux:…` montre l'aperçu
+du dernier article sans rien publier ; pour un flux enregistré, il indique aussi quels articles
+ses filtres laisseraient passer.
+
+**Filtres.** `/rss filters flux:… [inclure] [exclure] [prioritaires] [auteurs] [categories]` ;
+sans option, la commande affiche les filtres en place. Chaque liste contient des mots séparés par
+des virgules (20 au plus) ; `aucun` la vide. La casse et les accents sont ignorés, et un mot doit
+apparaître entier : `rust` ne correspond pas à « trust ».
+
+| Filtre | Effet |
+|---|---|
+| `inclure` | Publier seulement les articles qui contiennent l'un de ces mots (titre, résumé, catégories) |
+| `exclure` | Ne jamais publier un article qui contient l'un de ces mots (titre, résumé, catégories ou adresse) |
+| `prioritaires` | Articles mis en avant (⭐, couleur dorée) ; ils passent le filtre `inclure` |
+| `auteurs` | Ignorer les articles de ces auteurs |
+| `categories` | Publier seulement les articles classés par le site dans l'une de ces catégories |
+
+Quand des mots prioritaires sont définis, le rôle de `mention` n'est mentionné que pour les articles
+prioritaires.
+
+**Catégories et présentation.** Le bot fournit six catégories : 📰 Actualités, 🎮 Gaming, 💻 Tech,
+🛠️ Développement, ⛏️ Minecraft et 🔗 Autre. Chacune a sa couleur et sa mise en page :
+
+| Mise en page | Rendu |
+|---|---|
+| Standard | Résumé de 350 caractères et grande image |
+| Compact | Résumé de 180 caractères et vignette |
+| Grand format | Résumé de 600 caractères et grande image |
+| Minimal | Titre et lien seulement |
+
+`/rss config category-add nom:… emoji:… [couleur] [style]` crée une catégorie propre au serveur
+(15 au plus) ; `category-edit` la modifie et `category-remove` la supprime, ses flux repassant dans
+« Autre ». `/rss config view` résume les limites, les catégories et l'état des flux.
+
+Chaque article est publié sous forme d'embed : nom du site, titre, résumé, image, date de
+publication et bouton « Lire l'article ». Une information absente du flux n'est jamais inventée :
+un article sans date n'affiche pas de date.
+
+**Fonctionnement.** Toutes les minutes, la tâche `rss:check` vérifie les flux dont l'échéance est
+passée (20 au plus par passage, 4 en parallèle). Pour chaque flux :
+
+1. le flux est réservé : une vérification automatique et un `/rss refresh` ne peuvent pas se
+   chevaucher ;
+2. il est téléchargé avec ses validateurs HTTP (`ETag`, `Last-Modified`) : un flux inchangé n'est
+   pas retéléchargé ;
+3. chaque article reçoit plusieurs empreintes (GUID, lien sans paramètres de suivi, ou titre et
+   date à défaut). Il est nouveau si aucune n'est connue : un site qui change ses GUID ne provoque
+   pas de republication ;
+4. les empreintes sont enregistrées **avant** la publication : un article n'est jamais publié deux
+   fois, même si le bot s'arrête au milieu ;
+5. les nouveaux articles de moins de 7 jours qui passent les filtres sont publiés, 5 au plus par
+   vérification, dans l'ordre chronologique.
+
+En cas d'échec (site injoignable, erreur, contenu invalide, salon supprimé), le flux est retenté
+avec un délai qui double à chaque échec consécutif, jusqu'à 24 heures, ou plus tard si le site le
+demande (`Retry-After`). Un flux que le site déclare supprimé (code 410) est mis en pause, avec la
+raison visible dans `/rss info`. Un flux en échec ne gêne jamais les autres ni le reste du bot.
+
+**Sécurité.** Les adresses de flux passent par le client HTTP sécurisé (voir
+[Appels vers des sites externes](#appels-vers-des-sites-externes)) : adresses internes refusées,
+y compris après redirection, 15 secondes et 5 Mo au plus par flux, une requête par seconde et par
+site. Les entités XML externes sont refusées et les entités déclarées dans le document sont
+bornées. Le HTML des articles est réduit à du texte ; la mise en forme Discord, les liens masqués
+et les mentions qu'il contiendrait sont neutralisés. Les liens et images ne sont acceptés qu'en
+`http(s)` : le bot ne les télécharge pas, Discord les affiche.
+
+Les empreintes d'un article disparu de son flux depuis 30 jours sont purgées chaque jour ; celles
+du dernier téléchargement sont toujours conservées.
 
 ## Ajouter une commande
 

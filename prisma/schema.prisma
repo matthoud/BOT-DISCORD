@@ -57,6 +57,8 @@ model GuildConfig {
   polls               Poll[]
   events              Event[]
   reminders           Reminder[]
+  rssFeeds            RssFeed[]
+  rssCategories       RssCategory[]
 }
 
 /// Préférences propres à un utilisateur (indépendantes des serveurs).
@@ -546,4 +548,101 @@ model Reminder {
 
   @@index([sentAt, remindAt])
   @@index([guildId, userId, sentAt])
+}
+
+/// Mise en page d'une publication RSS dans Discord.
+enum RssStyle {
+  /// Résumé et grande image.
+  STANDARD
+  /// Résumé court et vignette.
+  COMPACT
+  /// Grande image et résumé long.
+  LARGE
+  /// Titre et lien uniquement.
+  MINIMAL
+}
+
+/// Catégorie de flux créée par un serveur, en plus des catégories fournies par le bot.
+model RssCategory {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  name      String
+  emoji     String
+  color     Int
+  style     RssStyle @default(STANDARD)
+  createdAt DateTime @default(now())
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  feeds RssFeed[]
+
+  @@unique([guildId, name])
+}
+
+/// Flux RSS ou Atom surveillé pour un salon.
+model RssFeed {
+  id                  Int       @id @default(autoincrement())
+  guildId             String
+  channelId           String
+  /// Adresse du flux (après découverte éventuelle depuis une page web).
+  url                 String
+  name                String
+  siteUrl             String?
+  iconUrl             String?
+  /// Catégorie fournie par le bot ; ignorée si une catégorie personnalisée est choisie.
+  category            String    @default("other")
+  customCategoryId    Int?
+  /// Intervalle entre deux vérifications réussies (10 minutes minimum, contrainte en base).
+  intervalMinutes     Int       @default(30)
+  showSummary         Boolean   @default(true)
+  showImage           Boolean   @default(true)
+  /// Rôle mentionné à chaque publication (ou aux seules publications prioritaires s'il y a des mots-clés prioritaires).
+  mentionRoleId       String?
+  includeKeywords     String[]  @default([])
+  excludeKeywords     String[]  @default([])
+  priorityKeywords    String[]  @default([])
+  ignoredAuthors      String[]  @default([])
+  categoryFilter      String[]  @default([])
+  paused              Boolean   @default(false)
+  /// Raison d'une suspension automatique (flux supprimé par le site, par exemple).
+  pausedReason        String?
+  /// Validateurs HTTP de la dernière réponse, pour ne pas retélécharger un flux inchangé.
+  etag                String?
+  lastModified        String?
+  nextCheckAt         DateTime  @default(now())
+  /// Vérification en cours jusqu'à cette date : un flux n'est jamais traité deux fois en même temps.
+  leaseUntil          DateTime?
+  lastCheckAt         DateTime?
+  lastSuccessAt       DateTime?
+  /// Dernier téléchargement complet (hors réponse « non modifié »).
+  lastFetchedAt       DateTime?
+  lastPostAt          DateTime?
+  postCount           Int       @default(0)
+  consecutiveFailures Int       @default(0)
+  lastError           String?
+  creatorId           String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  guild          GuildConfig  @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  customCategory RssCategory? @relation(fields: [customCategoryId], references: [id], onDelete: SetNull)
+  items          RssItem[]
+
+  @@unique([guildId, channelId, url])
+  @@index([paused, nextCheckAt])
+  @@index([customCategoryId])
+}
+
+/// Article déjà vu dans un flux, identifié par une empreinte (GUID, lien ou titre et date).
+/// Un article peut avoir plusieurs empreintes : il reste reconnu si le site change l'une d'elles.
+model RssItem {
+  id         Int      @id @default(autoincrement())
+  feedId     Int
+  key        String
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  feed RssFeed @relation(fields: [feedId], references: [id], onDelete: Cascade)
+
+  @@unique([feedId, key])
+  @@index([lastSeenAt])
 }

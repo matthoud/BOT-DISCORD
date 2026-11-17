@@ -59,6 +59,8 @@ model GuildConfig {
   reminders           Reminder[]
   rssFeeds            RssFeed[]
   rssCategories       RssCategory[]
+  gamingConfig        GamingConfig?
+  gamingAnnouncements GamingAnnouncement[]
 }
 
 /// Préférences propres à un utilisateur (indépendantes des serveurs).
@@ -645,4 +647,91 @@ model RssItem {
 
   @@unique([feedId, key])
   @@index([lastSeenAt])
+}
+
+/// Nature d'une offre gratuite, telle que la décrit sa source.
+enum GamingOfferKind {
+  /// Jeu complet offert, à conserver.
+  GAME
+  /// DLC ou contenu en jeu.
+  DLC
+  /// Accès anticipé, bêta ou playtest.
+  BETA
+  OTHER
+}
+
+/// Offre gratuite détectée chez un fournisseur (commune à tous les serveurs).
+model GamingOffer {
+  id          Int             @id @default(autoincrement())
+  /// Fournisseur de la donnée (`gamerpower`, par exemple).
+  provider    String
+  /// Identifiant de l'offre chez le fournisseur.
+  externalId  String
+  title       String
+  description String          @default("")
+  kind        GamingOfferKind
+  /// Boutiques et plateformes concernées (`epic`, `steam`, `gog`...).
+  stores      String[]        @default([])
+  /// Valeur annoncée par le fournisseur, en centimes de `currency` ; vide si inconnue.
+  worthCents  Int?
+  currency    String?
+  /// Date de fin annoncée ; vide si la source ne la donne pas.
+  endsAt      DateTime?
+  imageUrl    String?
+  /// Lien vers l'offre.
+  url         String
+  /// Vrai si l'offre demande une inscription sur un site partenaire pour obtenir une clé.
+  keyRequired Boolean         @default(false)
+  /// Vrai pour les offres présentes lors de la toute première synchronisation : jamais annoncées.
+  baseline    Boolean         @default(false)
+  /// Faux quand l'offre a disparu de la source.
+  active      Boolean         @default(true)
+  firstSeenAt DateTime        @default(now())
+  lastSeenAt  DateTime        @default(now())
+
+  announcements GamingAnnouncement[]
+
+  @@unique([provider, externalId])
+  @@index([active, firstSeenAt])
+  @@index([lastSeenAt])
+}
+
+/// Réglages du module gaming d'un serveur.
+model GamingConfig {
+  guildId         String            @id
+  /// Salon des jeux offerts.
+  channelId       String?
+  /// Salon des DLC, bêtas et autres offres ; vide = salon des jeux.
+  extrasChannelId String?
+  kinds           GamingOfferKind[] @default([GAME])
+  /// Boutiques retenues ; vide = toutes.
+  stores          String[]          @default([])
+  /// Valeur minimale (centimes) pour annoncer une offre ; 0 = toutes, y compris sans valeur connue.
+  minWorthCents   Int               @default(0)
+  /// Rôle mentionné pour les offres intéressantes ; vide = aucune mention (par défaut).
+  mentionRoleId   String?
+  /// Valeur minimale (centimes) d'un jeu pour mentionner le rôle.
+  mentionMinCents Int               @default(0)
+  paused          Boolean           @default(false)
+  /// Seules les offres apparues après cette date sont annoncées automatiquement.
+  announceSince   DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+}
+
+/// Offre annoncée (ou volontairement ignorée) sur un serveur : jamais deux fois.
+model GamingAnnouncement {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  offerId   Int
+  channelId String?
+  messageId String?
+  createdAt DateTime @default(now())
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  offer GamingOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, offerId])
+  @@index([offerId])
 }

@@ -33,10 +33,11 @@ const EXPECTED: Record<string, string[]> = {
   suggestions: ['suggest', 'suggestions', 'suggestions-admin'],
   events: ['event', 'event-admin', 'reminder'],
   rss: ['rss'],
+  gaming: ['gaming', 'gaming-admin'],
 };
 
 /** Modules de la V2 : inactifs tant qu'un administrateur ne les active pas. */
-const DISABLED_BY_DEFAULT = ['levels', 'economy', 'suggestions', 'events', 'rss'];
+const DISABLED_BY_DEFAULT = ['levels', 'economy', 'suggestions', 'events', 'rss', 'gaming'];
 
 /**
  * Composants volontairement utilisables sans permission Discord : ils sont ouverts à tous les
@@ -114,7 +115,7 @@ describe('chargement des modules', () => {
   });
 
   it('protège les commandes sensibles par une permission et un cooldown', () => {
-    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config', 'level', 'economy-admin', 'shop-admin', 'suggestions-admin', 'event-admin', 'rss'];
+    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config', 'level', 'economy-admin', 'shop-admin', 'suggestions-admin', 'event-admin', 'rss', 'gaming-admin'];
     for (const name of sensitive) {
       const command = registry.commands.find((loaded) => loaded.data.name === name);
       expect(command?.userPermissions?.length, `/${name} : permission`).toBeGreaterThan(0);

@@ -26,11 +26,12 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 14. [Module Sondages](#module-sondages)
 15. [Module Événements](#module-événements)
 16. [Module Flux RSS](#module-flux-rss)
-17. [Ajouter une commande](#ajouter-une-commande)
-18. [Créer un module](#créer-un-module)
-19. [Permissions](#permissions)
-20. [Tests et qualité](#tests-et-qualité)
-21. [Dépannage](#dépannage)
+17. [Module Gaming](#module-gaming)
+18. [Ajouter une commande](#ajouter-une-commande)
+19. [Créer un module](#créer-un-module)
+20. [Permissions](#permissions)
+21. [Tests et qualité](#tests-et-qualité)
+22. [Dépannage](#dépannage)
 
 ## Fonctionnalités
 
@@ -47,6 +48,7 @@ plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'exis
 | 🪙 Économie *(à activer)* | `/balance [membre]` `/daily` `/weekly` `/pay` `/shop` `/buy` `/inventory [membre]` `/economy leaderboard\|history` `/economy-admin config\|give\|take` `/shop-admin add\|edit\|remove` |
 | 💡 Suggestions *(à activer)* | `/suggest` `/suggestions list\|view` `/suggestions-admin config` |
 | 📅 Événements *(à activer)* | `/event list` `/event-admin create\|edit\|delete` `/reminder create\|list\|delete` |
+| 🎮 Gaming *(à activer)* | `/gaming free\|sources` `/gaming-admin setup\|config\|filters\|mention\|test\|pause\|resume` |
 | 📡 Flux RSS *(à activer)* | `/rss add\|remove\|list\|info\|test\|pause\|resume\|refresh\|edit\|filters` `/rss config view\|category-add\|category-edit\|category-remove` |
 
 Les modules marqués *(à activer)* sont inactifs sur un serveur tant qu'un administrateur n'a pas
@@ -452,6 +454,9 @@ Les erreurs sont des `HttpError` dont le message, en français, peut être montr
 | `RssFeed` | Flux suivi : adresse, salon, présentation, filtres, échéance, état et dernière erreur |
 | `RssItem` | Empreinte d'un article déjà vu dans un flux (anti-doublon) |
 | `RssCategory` | Catégorie de flux créée par un serveur : nom, emoji, couleur, mise en page |
+| `GamingOffer` | Offre gratuite détectée chez un fournisseur (commune à tous les serveurs) |
+| `GamingConfig` | Salons, filtres, mention et état des annonces gaming d'un serveur |
+| `GamingAnnouncement` | Offre annoncée (ou écartée par les filtres) sur un serveur : jamais deux fois |
 
 Toutes les tables d'un serveur référencent `GuildConfig` (suppression en cascade). Les requêtes
 passent exclusivement par Prisma, avec des paramètres liés : aucune requête SQL n'est construite
@@ -755,6 +760,65 @@ et les mentions qu'il contiendrait sont neutralisés. Les liens et images ne son
 
 Les empreintes d'un article disparu de son flux depuis 30 jours sont purgées chaque jour ; celles
 du dernier téléchargement sont toujours conservées.
+
+## Module Gaming
+
+Activation : `/module enable module:Gaming`, puis `/gaming-admin setup salon:#jeux-gratuits`.
+Les commandes `/gaming-admin` exigent la permission `Gérer le serveur`.
+
+**Source.** Les offres viennent de [GamerPower](https://www.gamerpower.com/api-read), dont la
+documentation et les conditions ont été vérifiées : API sans clé, gratuite, limitée à 10 requêtes
+par seconde, avec un lien obligatoire vers GamerPower.com (présent dans chaque annonce). Le bot
+l'interroge une fois toutes les 30 minutes, et seulement si au moins un serveur a activé le module.
+Les autres sources envisagées ne sont pas intégrées : l'adresse « jeux gratuits » d'Epic n'est pas
+documentée, IsThereAnyDeal est reporté. Il n'y a donc pas encore de promotions payantes, de
+calendrier des sorties ni de recherche de jeux. Les actualités gaming passent par le
+[module Flux RSS](#module-flux-rss) (catégorie Gaming).
+
+**Types d'offres.** Chaque annonce indique son type, tel que la source le donne :
+
+| Type | Signification |
+|---|---|
+| 🎁 Jeu à conserver | Jeu complet offert, qui reste dans la bibliothèque |
+| 🧩 DLC ou contenu en jeu | Extension ou objets ; le jeu de base peut être nécessaire |
+| 🧪 Accès anticipé ou bêta | Playtest ou bêta, accès temporaire |
+| 🎉 Offre gratuite | Autre offre |
+
+Quand l'offre passe par une clé à récupérer sur un site partenaire, l'annonce le précise (🔑).
+La source ne recense ni les Free Weekends ni les Free-to-Play : le bot n'en annonce donc pas.
+
+**Annonce.** Titre « *Jeu* gratuit sur *boutique* ! », description de la source (en anglais),
+valeur barrée puis « Gratuit », date de fin, lien « Récupérer l'offre ! » et grande image. La valeur
+est celle annoncée par la source, en dollars US, jamais convertie ; elle n'est barrée que si la source
+la donne, et la date de fin n'apparaît que si elle est connue.
+
+**Configuration.**
+
+| Commande | Effet |
+|---|---|
+| `/gaming-admin setup salon:… [salon-extras] [annoncer-actuelles]` | Salon des jeux, salon des DLC et bêtas (même salon par défaut) ; `annoncer-actuelles:True` publie aussi les 10 offres en cours les plus récentes |
+| `/gaming-admin filters [jeux] [dlc] [beta] [autres] [boutiques] [valeur-min]` | Types annoncés (jeux seulement par défaut), boutiques (`epic, steam, gog`… ou `toutes`), valeur minimale en dollars US |
+| `/gaming-admin mention role:… [valeur-min]` | Mentionne un rôle pour les jeux offerts (d'une valeur minimale) ; désactivé par défaut, `desactiver:True` pour l'arrêter |
+| `/gaming-admin test` | Aperçu de l'annonce de l'offre la plus récente qui passe les filtres, sans publication |
+| `/gaming-admin config` | Résumé de la configuration |
+| `/gaming-admin pause` / `resume` | Suspend ou reprend les annonces ; à la reprise, les offres apparues pendant la pause ne sont pas publiées d'un coup |
+
+Avec une valeur minimale, une offre dont la valeur est inconnue n'est pas annoncée. Pour tous les
+membres, `/gaming free [type] [boutique]` liste les offres en cours et `/gaming sources` l'état des
+sources.
+
+**Anti-doublons.** Les offres sont enregistrées une fois pour tous les serveurs (`GamingOffer`) et
+chaque annonce est réservée en base avant l'envoi (`GamingAnnouncement`, unique par serveur et par
+offre) : une offre n'est jamais publiée deux fois sur un serveur. Les offres présentes lors de la
+toute première synchronisation et celles antérieures à `/gaming-admin setup` ne sont pas annoncées
+automatiquement. Au plus 5 annonces partent par serveur et par passage. Une offre expirée n'est jamais
+annoncée. Une offre disparue de la source est oubliée au bout de 90 jours : si elle revient ensuite,
+elle est annoncée de nouveau.
+
+**Ajouter une source.** Créer un fichier dans `src/modules/gaming/providers/` qui implémente
+`GamingProvider` (identifiant, nom, site pour l'attribution, intervalle, `fetchOffers`), après avoir
+vérifié sa documentation et ses conditions, puis l'ajouter à `PROVIDERS` dans `providers/index.ts`.
+Sa tâche de synchronisation est déclarée automatiquement.
 
 ## Ajouter une commande
 

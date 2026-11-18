@@ -1,12 +1,22 @@
 # Bot Discord modulaire
 
-Bot Discord d'administration, de modération, de logs, de bienvenue et de divertissement, pensé pour
-plusieurs serveurs et pour accueillir de nouveaux modules sans toucher à l'existant.
+Bot Discord communautaire et gaming, pensé pour plusieurs serveurs et pour accueillir de nouveaux
+modules sans toucher à l'existant : administration, modération, logs, bienvenue, divertissement,
+niveaux, économie, suggestions, sondages, événements, flux RSS et jeux gratuits.
 
-- **Langage** : TypeScript (Node.js ≥ 20.12)
+- **Langage** : TypeScript (Node.js 22 recommandé, ≥ 20.12)
 - **Discord** : discord.js v14 (commandes slash, boutons, menus, modals)
 - **Données** : PostgreSQL + Prisma
 - **Logs techniques** : Pino
+
+Documentation complémentaire :
+
+- [docs/commandes.md](docs/commandes.md) : référence complète des 60 commandes et de leurs options,
+  générée à partir du code (`npm run docs:commands`) ;
+- [docs/sources-gaming.md](docs/sources-gaming.md) : sources des données gaming, conditions
+  d'utilisation, sources écartées et ajout d'une source ;
+- [docs/tests-discord.md](docs/tests-discord.md) : vérifications à faire sur Discord après un
+  déploiement.
 
 ## Sommaire
 
@@ -122,13 +132,12 @@ Dans **OAuth2 → URL Generator** :
 | Voir les salons, Envoyer des messages, Intégrer des liens, Voir l'historique des messages | Toutes les réponses, logs, bienvenue |
 | Gérer les messages | `/clear` |
 | Gérer les salons | `/slowmode` |
-| Gérer les rôles | `/role`, `/lock`, `/unlock`, rôle automatique |
+| Gérer les rôles | `/role`, `/lock`, `/unlock`, rôle automatique, récompenses de niveau, rôles vendus en boutique |
 | Gérer les pseudos | `/nick` |
 | Expulser des membres | `/kick` |
 | Bannir des membres | `/ban`, `/unban` |
 | Exclure temporairement des membres | `/timeout`, `/untimeout` |
-| Mentionner @everyone, @here et tous les rôles | `/announce` avec mention (facultatif) |
-| Créer des sondages | `/poll` |
+| Mentionner @everyone, @here et tous les rôles | Facultatif : `/announce` avec mention, et rôle mentionné par les flux RSS ou les annonces gaming lorsqu'il n'est pas « mentionnable » |
 
 Ouvrez l'URL générée pour inviter le bot.
 
@@ -138,7 +147,7 @@ Ouvrez l'URL générée pour inviter le bot.
 
 ## Installation en développement
 
-Prérequis : Node.js ≥ 20.12, npm, et PostgreSQL (ou Docker pour le lancer).
+Prérequis : Node.js 22 (≥ 20.12), npm, et PostgreSQL (ou Docker pour le lancer).
 
 ```bash
 git clone <url-du-depot> discord-bot
@@ -221,7 +230,12 @@ npm start
    chaque salon reçoit bien un message (la commande indique la cause en cas de problème).
 3. `/welcome setup` : choisissez le salon, ajustez les messages, cliquez sur **Aperçu**, puis **Activer**.
 4. `/sanctions add` : définissez vos sanctions automatiques.
-5. `/config view` : résumé de la configuration du serveur.
+5. `/config timezone` : fuseau horaire du serveur (`Europe/Paris` par défaut), utilisé pour les
+   dates des événements et des rappels.
+6. `/module list` puis `/module enable` pour les modules à activer (niveaux, économie, suggestions,
+   événements, flux RSS, gaming), et leur configuration : `/level config`, `/economy-admin config`,
+   `/suggestions-admin config`, `/rss add`, `/gaming-admin setup`.
+7. `/config view` : résumé de la configuration du serveur.
 
 ## Déploiement sur Debian
 
@@ -292,12 +306,23 @@ Pour limiter la taille de ce fichier, créez `/etc/logrotate.d/discord-bot` :
 
 ## Mise à jour du bot
 
+Avant une mise à jour qui contient une migration (nouveau dossier dans `prisma/migrations`),
+sauvegardez la base. Les migrations ne font qu'ajouter des tables, des colonnes et des contraintes ;
+elles ne suppriment aucune donnée.
+
+```bash
+# Avec Docker
+docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > sauvegarde-$(date +%F).sql
+# Sans Docker
+sudo -u postgres pg_dump <nom-de-la-base> > sauvegarde-$(date +%F).sql
+```
+
 Avec Docker :
 
 ```bash
 cd /opt/discord-bot && git pull
-docker compose up -d --build
-docker compose run --rm bot node dist/scripts/deploy-commands.js   # si des commandes ont changé
+docker compose up -d --build                                        # migrations appliquées au démarrage
+docker compose run --rm bot node dist/scripts/deploy-commands.js    # si des commandes ont changé
 ```
 
 Avec systemd :
@@ -305,23 +330,41 @@ Avec systemd :
 ```bash
 cd /opt/discord-bot
 sudo -u discordbot git pull
-sudo -u discordbot npm ci
+sudo -u discordbot npm ci                       # dépendances + régénération du client Prisma
 sudo -u discordbot npm run build
-sudo -u discordbot npm run commands:deploy:prod                    # si des commandes ont changé
-sudo systemctl restart discord-bot
+sudo -u discordbot npm run commands:deploy:prod # si des commandes ont changé
+sudo systemctl restart discord-bot              # migrations appliquées avant le démarrage
 ```
 
-Les migrations sont appliquées automatiquement au redémarrage. Toute la configuration étant en
-base, un redémarrage ne fait rien perdre ; seuls les cooldowns en cours sont remis à zéro.
-
-Les migrations ne font qu'ajouter des tables et des colonnes. Par précaution, sauvegardez tout de
-même la base avant une mise à jour qui en contient :
+Installation lancée à la main (dossier quelconque, par exemple `/discord-bot`) : la séquence
+complète, sans risque si une étape n'était pas nécessaire, est :
 
 ```bash
-# Avec Docker
-docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > sauvegarde-$(date +%F).sql
-# Sans Docker
-sudo -u postgres pg_dump <nom-de-la-base> > sauvegarde-$(date +%F).sql
+cd /discord-bot
+git pull
+npm install            # nouvelles dépendances ; régénère aussi le client Prisma
+npm run db:deploy      # applique les migrations en attente
+npm run commands:deploy
+npm run build          # en mode compilé (npm start)
+# puis redémarrer le bot
+```
+
+Chaque étape oubliée a un symptôme reconnaissable (voir [Dépannage](#dépannage)) : module
+introuvable sans `npm install`, table absente sans `db:deploy`, commande invisible sans
+`commands:deploy`, ancien comportement sans redémarrage.
+
+Toute la configuration étant en base, un redémarrage ne fait rien perdre : les échéances (rappels,
+sondages, bannissements temporaires, flux RSS, offres gaming) sont rattrapées au démarrage, sans
+doublon. Seuls les cooldowns en cours sont remis à zéro.
+
+**Petit serveur.** `npm install` et `npm run build` demandent plus de mémoire que le bot lui-même
+(environ 150 Mo en fonctionnement). Si l'installation s'arrête sur « Killed », ajoutez un fichier
+d'échange :
+
+```bash
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
 ## Architecture
@@ -349,11 +392,13 @@ src/
 │       ├── events/          Écouteurs d'événements Discord
 │       ├── components/      Boutons, menus et modals persistants
 │       └── services/        Logique métier du module
-├── scripts/                 Déploiement des commandes
+├── scripts/                 Déploiement des commandes, génération de docs/commandes.md
 ├── types/                   Contrats : Command, BotEvent, ComponentHandler, BotModule
 └── utils/                   Fonctions génériques (durées, formatage, cache, fuseaux horaires)
 prisma/                      Schéma et migrations
-tests/                       Tests automatisés
+tests/                       Tests unitaires ; tests/integration/ : tests sur une vraie base
+docs/                        Référence des commandes, sources gaming, tests Discord
+scripts/                     Unité systemd
 ```
 
 ### Parcours d'une commande
@@ -862,7 +907,7 @@ Règles à suivre :
 - Utilisez `interaction.deferReply()` avant tout traitement de plus de 3 secondes.
 - Passez par un repository de `core/database/repositories/` pour toute donnée.
 - Ajoutez le nom de la commande dans `tests/modules.test.ts`, puis lancez
-  `npm run commands:deploy`.
+  `npm run commands:deploy` et `npm run docs:commands` (référence des commandes).
 
 ## Créer un module
 
@@ -933,6 +978,11 @@ Le module apparaît automatiquement dans `/help`, `/module list` et `/config vie
 `defaultEnabled: false`, il est actif sur tous les serveurs dès son installation ; avec, chaque
 serveur l'active par `/module enable`.
 
+Pour finir : déclarez ses commandes dans `EXPECTED` de `tests/modules.test.ts` (et les commandes
+d'administration dans la liste des commandes sensibles), ajoutez des tests unitaires et, si le
+module écrit en base, des tests d'intégration dans `tests/integration/`. Régénérez la référence
+avec `npm run docs:commands` et documentez le module dans ce README.
+
 ## Permissions
 
 Pour chaque commande, dans l'ordre :
@@ -1002,5 +1052,13 @@ déploiement est dans [docs/tests-discord.md](docs/tests-discord.md).
 | Les commandes n'apparaissent pas | `npm run commands:deploy` non lancé, ou déploiement global encore en propagation |
 | Commandes en double | Déployées à la fois sur le serveur de test et globalement : `npm run commands:deploy -- --clear` avec `DEV_GUILD_ID` défini |
 | « Mon rôle est placé trop bas » | Remontez le rôle du bot dans la liste des rôles |
+| `Cannot find module '…'` au démarrage | `npm install` non relancé après une mise à jour qui ajoute une dépendance |
+| `Cannot read properties of undefined (reading 'findMany')` ou table inexistante | Client Prisma non régénéré (`npm install` ou `npm run db:generate`) ou migrations non appliquées (`npm run db:deploy`) |
+| Nouvelle commande ou nouvelle option invisible | `npm run commands:deploy` non relancé, ou application Discord à recharger (Ctrl+R) |
+| Commande d'un module refusée « module désactivé » | `/module enable` pour ce serveur (les modules de la V2 sont désactivés par défaut) |
+| `npm install` s'arrête sur « Killed » | Mémoire insuffisante : ajoutez un fichier d'échange (voir [Mise à jour du bot](#mise-à-jour-du-bot)) |
+| Un flux RSS ne publie plus | `/rss info` donne la dernière erreur ; un flux supprimé par le site (code 410) est mis en pause automatiquement |
+| Aucune annonce gaming | Seules les offres apparues après `/gaming-admin setup` sont annoncées ; `/gaming sources` et `/gaming-admin test` aident au diagnostic |
+| Les dates des événements sont décalées | Fuseau horaire du serveur à régler avec `/config timezone` |
 | Logs de messages « contenu indisponible » | Message antérieur au démarrage du bot : Discord ne fournit pas son contenu |
 | Aucun log publié | Module désactivé, salon non configuré, ou bot sans droit d'écriture dans le salon |

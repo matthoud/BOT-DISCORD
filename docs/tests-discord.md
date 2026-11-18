@@ -40,9 +40,9 @@ sur un serveur de test. Prévoyez deux comptes : un administrateur et un membre 
 ## Gaming
 
 - [X] `/gaming sources` → GamerPower opérationnel ; `/gaming free` liste les offres.
-- [ ] `/gaming-admin test` → aperçu conforme (prix barré seulement si connu, date de fin seulement
+- [X] `/gaming-admin test` → aperçu conforme (prix barré seulement si connu, date de fin seulement
       si connue, lien GamerPower).
-- [ ] Une nouvelle offre est publiée une seule fois dans le bon salon (à vérifier au fil des jours).
+- [X] Une nouvelle offre est publiée une seule fois dans le bon salon (à vérifier au fil des jours).
 
 ## Redémarrage
 

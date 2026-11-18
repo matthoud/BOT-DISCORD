@@ -19,6 +19,7 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "commands:deploy": "tsx src/scripts/deploy-commands.ts",
+    "docs:commands": "tsx src/scripts/generate-command-docs.ts",
     "commands:deploy:prod": "node dist/scripts/deploy-commands.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

@@ -11,6 +11,7 @@ const FRENCH_NAMES: Record<string, string> = {
   KickMembers: 'Expulser des membres',
   BanMembers: 'Bannir des membres',
   ModerateMembers: 'Exclure temporairement des membres',
+  ManageEvents: 'Gérer les événements',
   ViewAuditLog: "Voir les logs d'audit",
   ViewChannel: 'Voir le salon',
   SendMessages: 'Envoyer des messages',

@@ -7,7 +7,7 @@ sur un serveur de test. Prévoyez deux comptes : un administrateur et un membre 
 ## Après chaque déploiement
 
 - [X] Le journal du bot affiche « Planificateur démarré » et aucune erreur `FATAL`.
-- [X] `npm run commands:deploy` a annoncé le bon nombre de commandes (60 actuellement).
+- [X] `npm run commands:deploy` a annoncé le bon nombre de commandes (voir `docs/commandes.md`).
 - [X] `/ping` répond ; `/help` liste les modules.
 - [X] `/config view` affiche les modules, le fuseau horaire et les salons configurés.
 - [X] `/logs test` publie un message dans chaque salon de logs configuré.

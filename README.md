@@ -11,7 +11,7 @@ niveaux, économie, suggestions, sondages, événements, flux RSS et jeux gratui
 
 Documentation complémentaire :
 
-- [docs/commandes.md](docs/commandes.md) : référence complète des 60 commandes et de leurs options,
+- [docs/commandes.md](docs/commandes.md) : référence complète des commandes et de leurs options,
   générée à partir du code (`npm run docs:commands`) ;
 - [docs/sources-gaming.md](docs/sources-gaming.md) : sources des données gaming, conditions
   d'utilisation, sources écartées et ajout d'une source ;
@@ -37,11 +37,12 @@ Documentation complémentaire :
 15. [Module Événements](#module-événements)
 16. [Module Flux RSS](#module-flux-rss)
 17. [Module Gaming](#module-gaming)
-18. [Ajouter une commande](#ajouter-une-commande)
-19. [Créer un module](#créer-un-module)
-20. [Permissions](#permissions)
-21. [Tests et qualité](#tests-et-qualité)
-22. [Dépannage](#dépannage)
+18. [Module Sécurité](#module-sécurité)
+19. [Ajouter une commande](#ajouter-une-commande)
+20. [Créer un module](#créer-un-module)
+21. [Permissions](#permissions)
+22. [Tests et qualité](#tests-et-qualité)
+23. [Dépannage](#dépannage)
 
 ## Fonctionnalités
 
@@ -60,6 +61,7 @@ Documentation complémentaire :
 | 📅 Événements *(à activer)* | `/event list` `/event-admin create\|edit\|delete` `/reminder create\|list\|delete` |
 | 🎮 Gaming *(à activer)* | `/gaming free\|sources` `/gaming-admin setup\|config\|filters\|mention\|test\|pause\|resume` |
 | 📡 Flux RSS *(à activer)* | `/rss add\|remove\|list\|info\|test\|pause\|resume\|refresh\|edit\|filters` `/rss config view\|category-add\|category-edit\|category-remove` |
+| 🔒 Sécurité *(à activer)* | `/security status\|incidents\|incident` `/security-admin config\|alerts\|exempt-add\|exempt-remove\|test-alert` |
 
 Les modules marqués *(à activer)* sont inactifs sur un serveur tant qu'un administrateur n'a pas
 lancé `/module enable`.
@@ -864,6 +866,42 @@ elle est annoncée de nouveau.
 `GamingProvider` (identifiant, nom, site pour l'attribution, intervalle, `fetchOffers`), après avoir
 vérifié sa documentation et ses conditions, puis l'ajouter à `PROVIDERS` dans `providers/index.ts`.
 Sa tâche de synchronisation est déclarée automatiquement.
+
+## Module Sécurité
+
+Activation : `/module enable module:Sécurité`. `/security` est réservée aux membres ayant
+« Exclure temporairement des membres » (modérateurs), `/security-admin` à « Gérer le serveur ».
+
+Ce module est le socle des protections de la V3 (anti-raid, anti-spam, anti-lien… livrées
+progressivement). Il fournit déjà :
+
+**Incidents.** Chaque détection est enregistrée comme incident numéroté par serveur : type,
+membre concerné, gravité, règle déclenchée, action appliquée, statut de traitement. Une règle en
+**mode observation** enregistre l'incident sans rien faire au membre. Les incidents sont conservés
+180 jours.
+
+| Commande | Effet |
+|---|---|
+| `/security status` | Salon d'alertes, incidents des dernières 24 heures et 7 jours par gravité, incidents à traiter, exemptions |
+| `/security incidents [gravite] [membre] [periode] [statut]` | Liste filtrée et paginée |
+| `/security incident numero:…` | Détail, avec boutons « Marquer comme traité », « Fausse alerte », « Rouvrir » |
+
+**Alertes au staff.** `/security-admin alerts salon:… [gravite]` choisit le salon (réservez-le au
+staff) et la gravité minimale publiée : Information, Avertissement (par défaut), Incident important
+ou Incident critique. Une alerte ne mentionne jamais personne et ne contient que l'utile : numéro,
+type, gravité, membre (mention et identifiant), salon, règle et action. Pour ne pas noyer le salon
+pendant un raid, 10 alertes au plus partent par minute ; les suivantes restent consultables avec
+`/security incidents`, et la prochaine alerte publiée en indique le nombre.
+`/security-admin test-alert` publie une alerte d'essai.
+
+**Exemptions.** `/security-admin exempt-add` et `exempt-remove` (un rôle, un membre ou un salon,
+25 par liste) excluent des protections automatiques ; un salon ignoré l'est avec ses fils.
+Les administrateurs, le propriétaire du serveur et les bots ne sont jamais visés.
+`/security-admin config` résume ces réglages.
+
+**Messages retenus.** Les protections examinent chaque message une seule fois. Un message retenu
+(supprimé ou sanctionné) ne rapporte ni XP ni monnaie, même si les modules Niveaux et Économie
+sont actifs.
 
 ## Ajouter une commande
 

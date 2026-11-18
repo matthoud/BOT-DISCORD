@@ -2,7 +2,7 @@
 
 <!-- Fichier généré par `npm run docs:commands` à partir du code : ne pas le modifier à la main. -->
 
-60 commandes réparties en 13 modules. Les options entre crochets sont facultatives.
+62 commandes réparties en 14 modules. Les options entre crochets sont facultatives.
 Les modules marqués *(à activer)* sont inactifs tant qu’un administrateur n’a pas lancé `/module enable`.
 
 ## Sommaire
@@ -17,6 +17,7 @@ Les modules marqués *(à activer)* sont inactifs tant qu’un administrateur n�
 - **🛡️ Modération** : `/ban` `/clearwarnings` `/history` `/kick` `/sanctions` `/timeout` `/unban` `/untimeout` `/warn` `/warnings`
 - **📊 Sondages** : `/poll`
 - **📡 Flux RSS *(à activer)*** : `/rss`
+- **🔒 Sécurité *(à activer)*** : `/security` `/security-admin`
 - **💡 Suggestions *(à activer)*** : `/suggest` `/suggestions` `/suggestions-admin`
 - **🧰 Utilitaires** : `/config` `/help` `/module` `/permissions` `/ping` `/preferences`
 - **👋 Bienvenue** : `/welcome`
@@ -1101,6 +1102,99 @@ Supprime une catégorie personnalisée.
 | Option | Type | Description |
 |---|---|---|
 | `categorie` | texte, obligatoire, liste proposée | Catégorie à supprimer |
+
+## 🔒 Sécurité *(à activer)*
+
+Incidents de sécurité, alertes au staff et protections automatiques du serveur.
+
+### /security
+
+Consulte la sécurité du serveur et ses incidents.
+
+Réservée aux membres ayant : **Exclure temporairement des membres**.
+
+#### /security status
+
+Résumé de la sécurité du serveur.
+
+`/security status`
+
+#### /security incidents
+
+Liste les incidents de sécurité, du plus récent au plus ancien.
+
+`/security incidents [gravite] [membre] [periode] [statut]`
+
+| Option | Type | Description |
+|---|---|---|
+| `gravite` | texte | Gravité minimale — choix : Information, Avertissement, Incident important, Incident critique |
+| `membre` | membre | Membre concerné |
+| `periode` | texte | Période — choix : Dernières 24 heures, 7 derniers jours, 30 derniers jours |
+| `statut` | texte | Statut de traitement — choix : 🔴 À traiter, ✅ Traité, ⚪ Fausse alerte |
+
+#### /security incident
+
+Affiche le détail d'un incident et permet de le traiter.
+
+`/security incident numero`
+
+| Option | Type | Description |
+|---|---|---|
+| `numero` | nombre entier, obligatoire, min. 1 | Numéro de l'incident |
+
+### /security-admin
+
+Configure la sécurité du serveur.
+
+Réservée aux membres ayant : **Gérer le serveur**.
+
+#### /security-admin config
+
+Affiche la configuration de la sécurité.
+
+`/security-admin config`
+
+#### /security-admin alerts
+
+Choisit le salon et la gravité minimale des alertes au staff.
+
+`/security-admin alerts [salon] [gravite] [desactiver]`
+
+| Option | Type | Description |
+|---|---|---|
+| `salon` | salon | Salon des alertes (réservé au staff) |
+| `gravite` | texte | Gravité minimale publiée — choix : Information, Avertissement, Incident important, Incident critique |
+| `desactiver` | oui / non | Ne plus publier aucune alerte |
+
+#### /security-admin exempt-add
+
+Exempte un rôle, un membre ou un salon des protections.
+
+`/security-admin exempt-add [role] [membre] [salon]`
+
+| Option | Type | Description |
+|---|---|---|
+| `role` | rôle | Rôle |
+| `membre` | membre | Membre |
+| `salon` | salon | Salon (ses fils compris) |
+
+#### /security-admin exempt-remove
+
+Retire une exemption.
+
+`/security-admin exempt-remove [role] [membre] [salon]`
+
+| Option | Type | Description |
+|---|---|---|
+| `role` | rôle | Rôle |
+| `membre` | membre | Membre |
+| `salon` | salon | Salon (ses fils compris) |
+
+#### /security-admin test-alert
+
+Publie une alerte d'essai pour vérifier le salon (rien n'est enregistré).
+
+`/security-admin test-alert`
 
 ## 💡 Suggestions *(à activer)*
 

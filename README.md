@@ -61,7 +61,7 @@ Documentation complémentaire :
 | 📅 Événements *(à activer)* | `/event list` `/event-admin create\|edit\|delete` `/reminder create\|list\|delete` |
 | 🎮 Gaming *(à activer)* | `/gaming free\|sources` `/gaming-admin setup\|config\|filters\|mention\|test\|pause\|resume` |
 | 📡 Flux RSS *(à activer)* | `/rss add\|remove\|list\|info\|test\|pause\|resume\|refresh\|edit\|filters` `/rss config view\|category-add\|category-edit\|category-remove` |
-| 🔒 Sécurité *(à activer)* | `/security status\|incidents\|incident` `/security-admin config\|alerts\|exempt-add\|exempt-remove\|test-alert` |
+| 🔒 Sécurité *(à activer)* | `/security status\|incidents\|incident` `/security-admin config\|alerts\|exempt-add\|exempt-remove\|test-alert\|quarantine-setup` `/quarantine add\|remove\|list\|info` |
 
 Les modules marqués *(à activer)* sont inactifs sur un serveur tant qu'un administrateur n'a pas
 lancé `/module enable`.
@@ -902,6 +902,28 @@ Les administrateurs, le propriétaire du serveur et les bots ne sont jamais vis�
 **Messages retenus.** Les protections examinent chaque message une seule fois. Un message retenu
 (supprimé ou sanctionné) ne rapporte ni XP ni monnaie, même si les modules Niveaux et Économie
 sont actifs.
+
+**Quarantaine.** Elle isole un membre le temps de régler un problème, sans l'exclure.
+
+1. Mise en place, une fois : `/security-admin quarantine-setup [role] [salon]`. Sans rôle indiqué,
+   un rôle « Quarantaine » est créé. Il est interdit d'accès à tous les salons (après
+   confirmation) ; le salon facultatif reste ouvert pour écrire au staff. Les salons créés ensuite
+   sont protégés automatiquement. Les salons où le bot n'a pas « Gérer les permissions » sont
+   signalés.
+2. `/quarantine add membre:… raison:… [duree]` (de 1 minute à 90 jours ; sans durée, jusqu'à levée
+   manuelle). Les rôles du membre sont **retirés et mémorisés**, puis remplacés par le rôle de
+   quarantaine : sans cela, un rôle autorisé dans un salon passerait outre l'interdiction. Les rôles
+   gérés par une intégration (Booster…) ou supérieurs au bot restent en place et sont signalés.
+   Un administrateur ne peut pas être mis en quarantaine (ses permissions passent outre).
+3. `/quarantine remove membre:…` lève la quarantaine et **rend les rôles** (sauf ceux supprimés
+   entre-temps). La levée automatique a lieu à l'échéance, y compris après un arrêt du bot.
+4. `/quarantine list` liste les quarantaines en cours ; `/quarantine info membre:…` affiche celle en
+   cours et l'historique.
+
+Chaque mise en quarantaine crée un incident et une alerte. Le membre est prévenu par message privé
+si le serveur et le membre l'acceptent. Un membre qui quitte puis rejoint le serveur pendant sa
+quarantaine la retrouve aussitôt, et le staff reçoit un incident « Contournement des règles ».
+Les commandes `/quarantine` sont réservées à « Exclure temporairement des membres ».
 
 ## Ajouter une commande
 

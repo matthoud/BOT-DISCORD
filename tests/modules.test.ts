@@ -34,7 +34,7 @@ const EXPECTED: Record<string, string[]> = {
   events: ['event', 'event-admin', 'reminder'],
   rss: ['rss'],
   gaming: ['gaming', 'gaming-admin'],
-  security: ['security', 'security-admin'],
+  security: ['security', 'security-admin', 'quarantine'],
 };
 
 /** Modules de la V2 : inactifs tant qu'un administrateur ne les active pas. */
@@ -116,7 +116,7 @@ describe('chargement des modules', () => {
   });
 
   it('protège les commandes sensibles par une permission et un cooldown', () => {
-    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config', 'level', 'economy-admin', 'shop-admin', 'suggestions-admin', 'event-admin', 'rss', 'gaming-admin', 'security', 'security-admin'];
+    const sensitive = [...EXPECTED.moderation!, 'role', 'clear', 'slowmode', 'lock', 'unlock', 'nick', 'announce', 'logs', 'welcome', 'module', 'permissions', 'config', 'level', 'economy-admin', 'shop-admin', 'suggestions-admin', 'event-admin', 'rss', 'gaming-admin', 'security', 'security-admin', 'quarantine'];
     for (const name of sensitive) {
       const command = registry.commands.find((loaded) => loaded.data.name === name);
       expect(command?.userPermissions?.length, `/${name} : permission`).toBeGreaterThan(0);

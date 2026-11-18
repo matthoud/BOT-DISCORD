@@ -63,6 +63,7 @@ model GuildConfig {
   gamingAnnouncements GamingAnnouncement[]
   securityConfig      SecurityConfig?
   securityIncidents   SecurityIncident[]
+  quarantineRecords   QuarantineRecord[]
 }
 
 /// Préférences propres à un utilisateur (indépendantes des serveurs).
@@ -771,19 +772,23 @@ enum IncidentStatus {
 
 /// Réglages communs des protections de sécurité d'un serveur.
 model SecurityConfig {
-  guildId           String           @id
+  guildId             String           @id
   /// Salon des alertes de sécurité ; vide = aucune alerte publiée.
-  alertChannelId    String?
+  alertChannelId      String?
   /// Gravité minimale d'un incident pour publier une alerte.
-  alertMinSeverity  IncidentSeverity @default(WARNING)
+  alertMinSeverity    IncidentSeverity @default(WARNING)
   /// Membres et rôles jamais visés par les protections automatiques (en plus des administrateurs).
-  exemptUserIds     String[]         @default([])
-  exemptRoleIds     String[]         @default([])
+  exemptUserIds       String[]         @default([])
+  exemptRoleIds       String[]         @default([])
   /// Salons où les protections automatiques ne s'appliquent pas.
-  ignoredChannelIds String[]         @default([])
+  ignoredChannelIds   String[]         @default([])
+  /// Rôle attribué aux membres en quarantaine.
+  quarantineRoleId    String?
+  /// Salon où les membres en quarantaine peuvent encore écrire au staff (facultatif).
+  quarantineChannelId String?
   /// Compteur servant à numéroter les incidents du serveur.
-  incidentCounter   Int              @default(0)
-  updatedAt         DateTime         @updatedAt
+  incidentCounter     Int              @default(0)
+  updatedAt           DateTime         @updatedAt
 
   guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
 }
@@ -819,4 +824,29 @@ model SecurityIncident {
   @@index([guildId, userId])
   @@index([guildId, severity, createdAt])
   @@index([createdAt])
+}
+
+/// Mise en quarantaine d'un membre. Une seule quarantaine active par membre (contrainte en base).
+model QuarantineRecord {
+  id             Int       @id @default(autoincrement())
+  guildId        String
+  userId         String
+  /// Auteur de la mise en quarantaine ; vide = protection automatique.
+  moderatorId    String?
+  reason         String
+  /// Rôles retirés au membre, rendus à la levée de la quarantaine.
+  removedRoleIds String[]  @default([])
+  createdAt      DateTime  @default(now())
+  /// Levée automatique ; vide = jusqu'à levée manuelle.
+  expiresAt      DateTime?
+  releasedAt     DateTime?
+  /// Auteur de la levée ; vide = levée automatique (durée écoulée).
+  releasedById   String?
+  releaseReason  String?
+
+  guild GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([guildId, userId])
+  @@index([guildId, releasedAt])
+  @@index([releasedAt, expiresAt])
 }

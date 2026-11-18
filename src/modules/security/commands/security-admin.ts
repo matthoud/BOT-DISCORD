@@ -17,6 +17,7 @@ import { baseEmbed, successEmbed } from '../../../core/ui/embeds';
 import type { Command } from '../../../types';
 import { assertMemberCanAccess } from '../../../utils/interaction';
 import { buildIncidentEmbed, resolveAlertChannel } from '../services/alerts';
+import { setupQuarantine } from '../services/quarantine.setup';
 import { SEVERITIES, SEVERITY_LABELS } from '../services/labels';
 
 /** Taille maximale de chaque liste d'exemptions. */
@@ -32,6 +33,7 @@ function describeConfig(config: SecurityConfig): string {
     `**Rôles exemptés** : ${list(config.exemptRoleIds, (id) => `<@&${id}>`)}`,
     `**Membres exemptés** : ${list(config.exemptUserIds, (id) => `<@${id}>`)}`,
     `**Salons ignorés** : ${list(config.ignoredChannelIds, (id) => `<#${id}>`)}`,
+    `**Rôle de quarantaine** : ${config.quarantineRoleId ? `<@&${config.quarantineRoleId}>` : 'aucun'}${config.quarantineChannelId ? ` · salon de quarantaine <#${config.quarantineChannelId}>` : ''}`,
     '-# Les administrateurs, le propriétaire du serveur et les bots ne sont jamais visés par les protections automatiques.',
   ].join('\n');
 }
@@ -97,6 +99,26 @@ const command: Command = {
         .setName('test-alert')
         .setDescription(
           "Publie une alerte d'essai pour vérifier le salon (rien n'est enregistré).",
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('quarantine-setup')
+        .setDescription(
+          'Prépare la quarantaine : rôle, interdiction d’accès aux salons, salon de contact.',
+        )
+        .addRoleOption((option) =>
+          option
+            .setName('role')
+            .setDescription('Rôle de quarantaine existant (créé automatiquement si vide)'),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName('salon')
+            .setDescription(
+              'Salon où les membres en quarantaine peuvent écrire au staff (facultatif)',
+            )
+            .addChannelTypes(ChannelType.GuildText),
         ),
     ),
   userPermissions: [PermissionFlagsBits.ManageGuild],
@@ -183,6 +205,8 @@ const command: Command = {
       });
       return;
     }
+
+    if (subcommand === 'quarantine-setup') return setupQuarantine(interaction);
 
     // Exemptions.
     const add = subcommand === 'exempt-add';

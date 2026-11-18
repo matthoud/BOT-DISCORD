@@ -2,7 +2,7 @@
 
 <!-- Fichier généré par `npm run docs:commands` à partir du code : ne pas le modifier à la main. -->
 
-62 commandes réparties en 14 modules. Les options entre crochets sont facultatives.
+63 commandes réparties en 14 modules. Les options entre crochets sont facultatives.
 Les modules marqués *(à activer)* sont inactifs tant qu’un administrateur n’a pas lancé `/module enable`.
 
 ## Sommaire
@@ -17,7 +17,7 @@ Les modules marqués *(à activer)* sont inactifs tant qu’un administrateur n�
 - **🛡️ Modération** : `/ban` `/clearwarnings` `/history` `/kick` `/sanctions` `/timeout` `/unban` `/untimeout` `/warn` `/warnings`
 - **📊 Sondages** : `/poll`
 - **📡 Flux RSS *(à activer)*** : `/rss`
-- **🔒 Sécurité *(à activer)*** : `/security` `/security-admin`
+- **🔒 Sécurité *(à activer)*** : `/quarantine` `/security` `/security-admin`
 - **💡 Suggestions *(à activer)*** : `/suggest` `/suggestions` `/suggestions-admin`
 - **🧰 Utilitaires** : `/config` `/help` `/module` `/permissions` `/ping` `/preferences`
 - **👋 Bienvenue** : `/welcome`
@@ -1107,6 +1107,51 @@ Supprime une catégorie personnalisée.
 
 Incidents de sécurité, alertes au staff et protections automatiques du serveur.
 
+### /quarantine
+
+Isole un membre le temps de régler un problème.
+
+Réservée aux membres ayant : **Exclure temporairement des membres**.
+
+#### /quarantine add
+
+Met un membre en quarantaine : ses rôles sont mis de côté et il perd l’accès aux salons.
+
+`/quarantine add membre raison [duree]`
+
+| Option | Type | Description |
+|---|---|---|
+| `membre` | membre, obligatoire | Membre à isoler |
+| `raison` | texte, obligatoire, 500 caractères max. | Raison (visible du staff et du membre) |
+| `duree` | texte | Levée automatique : 30m, 12h, 7j… (jusqu’à levée manuelle si vide) |
+
+#### /quarantine remove
+
+Lève la quarantaine d’un membre et lui rend ses rôles.
+
+`/quarantine remove membre [raison]`
+
+| Option | Type | Description |
+|---|---|---|
+| `membre` | membre, obligatoire | Membre concerné |
+| `raison` | texte, 500 caractères max. | Raison de la levée |
+
+#### /quarantine list
+
+Affiche les membres actuellement en quarantaine.
+
+`/quarantine list`
+
+#### /quarantine info
+
+Affiche la quarantaine en cours et l’historique d’un membre.
+
+`/quarantine info membre`
+
+| Option | Type | Description |
+|---|---|---|
+| `membre` | membre, obligatoire | Membre concerné |
+
 ### /security
 
 Consulte la sécurité du serveur et ses incidents.
@@ -1195,6 +1240,17 @@ Retire une exemption.
 Publie une alerte d'essai pour vérifier le salon (rien n'est enregistré).
 
 `/security-admin test-alert`
+
+#### /security-admin quarantine-setup
+
+Prépare la quarantaine : rôle, interdiction d’accès aux salons, salon de contact.
+
+`/security-admin quarantine-setup [role] [salon]`
+
+| Option | Type | Description |
+|---|---|---|
+| `role` | rôle | Rôle de quarantaine existant (créé automatiquement si vide) |
+| `salon` | salon | Salon où les membres en quarantaine peuvent écrire au staff (facultatif) |
 
 ## 💡 Suggestions *(à activer)*
 

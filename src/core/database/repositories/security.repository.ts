@@ -1,8 +1,9 @@
+import { Prisma } from '@prisma/client';
 import type {
   IncidentSeverity,
   IncidentStatus,
   IncidentType,
-  Prisma,
+  QuarantineRecord,
   SecurityConfig,
   SecurityIncident,
 } from '@prisma/client';
@@ -18,7 +19,13 @@ const configCache = new TtlCache<string, SecurityConfig>(CONFIG_CACHE_TTL_MS);
 export type SecurityConfigUpdate = Partial<
   Pick<
     SecurityConfig,
-    'alertChannelId' | 'alertMinSeverity' | 'exemptUserIds' | 'exemptRoleIds' | 'ignoredChannelIds'
+    | 'alertChannelId'
+    | 'alertMinSeverity'
+    | 'quarantineRoleId'
+    | 'quarantineChannelId'
+    | 'exemptUserIds'
+    | 'exemptRoleIds'
+    | 'ignoredChannelIds'
   >
 >;
 
@@ -198,4 +205,114 @@ export async function pruneIncidents(before: Date): Promise<number> {
     where: { createdAt: { lt: before } },
   });
   return count;
+}
+
+/* ---------------------------------------------------------------- Quarantaine */
+
+export interface QuarantineInput {
+  guildId: string;
+  userId: string;
+  moderatorId: string | null;
+  reason: string;
+  removedRoleIds: string[];
+  expiresAt: Date | null;
+}
+
+/**
+ * Enregistre une quarantaine. La base garantit une seule quarantaine active par membre :
+ * deux mises en quarantaine simultanées du même membre ne peuvent pas aboutir toutes les deux.
+ */
+export async function createQuarantine(input: QuarantineInput): Promise<QuarantineRecord> {
+  await ensureGuild(input.guildId);
+  try {
+    return await prisma.quarantineRecord.create({
+      data: { ...input, reason: input.reason.slice(0, 500) },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new BotError('Ce membre est déjà en quarantaine.');
+    }
+    throw error;
+  }
+}
+
+/** Annule l'enregistrement d'une quarantaine qui n'a pas pu être appliquée sur Discord. */
+export async function deleteQuarantine(id: number): Promise<void> {
+  await prisma.quarantineRecord.deleteMany({ where: { id } });
+}
+
+export async function getActiveQuarantine(
+  guildId: string,
+  userId: string,
+): Promise<QuarantineRecord | null> {
+  return prisma.quarantineRecord.findFirst({ where: { guildId, userId, releasedAt: null } });
+}
+
+export async function listActiveQuarantines(
+  guildId: string,
+  take = 100,
+): Promise<QuarantineRecord[]> {
+  return prisma.quarantineRecord.findMany({
+    where: { guildId, releasedAt: null },
+    orderBy: { createdAt: 'asc' },
+    take,
+  });
+}
+
+export async function listQuarantineHistory(
+  guildId: string,
+  userId: string,
+  take = 5,
+): Promise<QuarantineRecord[]> {
+  return prisma.quarantineRecord.findMany({
+    where: { guildId, userId },
+    orderBy: { createdAt: 'desc' },
+    take,
+  });
+}
+
+export async function countQuarantines(guildId: string, userId: string): Promise<number> {
+  return prisma.quarantineRecord.count({ where: { guildId, userId } });
+}
+
+/**
+ * Lève la quarantaine active d'un membre et retourne son enregistrement, ou `null` s'il n'y en
+ * avait pas (ou si elle vient d'être levée par ailleurs) : une levée n'est jamais traitée deux fois.
+ */
+export async function claimRelease(
+  guildId: string,
+  userId: string,
+  releasedById: string | null,
+  releaseReason: string,
+): Promise<QuarantineRecord | null> {
+  const active = await getActiveQuarantine(guildId, userId);
+  if (!active) return null;
+  const { count } = await prisma.quarantineRecord.updateMany({
+    where: { id: active.id, releasedAt: null },
+    data: { releasedAt: new Date(), releasedById, releaseReason: releaseReason.slice(0, 500) },
+  });
+  return count > 0 ? prisma.quarantineRecord.findUnique({ where: { id: active.id } }) : null;
+}
+
+/** Quarantaines arrivées à échéance, y compris pendant un arrêt du bot. */
+export async function findExpiredQuarantines(now: Date, take = 50): Promise<QuarantineRecord[]> {
+  return prisma.quarantineRecord.findMany({
+    where: { releasedAt: null, expiresAt: { lte: now } },
+    orderBy: { expiresAt: 'asc' },
+    take,
+  });
+}
+
+/** Ajoute des rôles à rendre à la levée (rôles reçus pendant la quarantaine, au retour sur le serveur). */
+export async function addRemovedRoles(id: number, roleIds: string[]): Promise<void> {
+  if (roleIds.length === 0) return;
+  const record = await prisma.quarantineRecord.findUnique({
+    where: { id },
+    select: { removedRoleIds: true },
+  });
+  if (!record) return;
+  await prisma.quarantineRecord.update({
+    where: { id },
+    data: { removedRoleIds: [...new Set([...record.removedRoleIds, ...roleIds])] },
+  });
 }
